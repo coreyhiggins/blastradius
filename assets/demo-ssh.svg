@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="692" height="176" viewBox="0 0 692 176" role="img" aria-label="blastradius terminal output">
+  <rect width="692" height="176" rx="8" fill="#0d1117"/>
+  <text font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#c9d1d9" xml:space="preserve">
+    <tspan x="18.0" y="32" fill="#6e7681">$</tspan><tspan x="26.4" y="32"> blastradius check &quot;ssh deploy@web01 &apos;rm -rf /var/www&apos;&quot;</tspan>
+    
+    <tspan x="18.0" y="72">  </tspan><tspan x="34.8" y="72" fill="#e3b341" font-weight="bold">confirm </tspan><tspan x="102.0" y="72">ssh deploy@web01 &apos;rm -rf /var/www&apos;</tspan>
+    <tspan x="18.0" y="92">  </tspan><tspan x="34.8" y="92" fill="#6e7681">reach: remote</tspan>
+    
+    <tspan x="18.0" y="132">  </tspan><tspan x="34.8" y="132" fill="#e3b341">-</tspan><tspan x="43.2" y="132"> ssh deploy@web01 rm -rf /var/www - runs on, or copies to, another machine</tspan>
+    <tspan x="18.0" y="152">  </tspan><tspan x="34.8" y="152" fill="#e3b341">-</tspan><tspan x="43.2" y="152"> rm -rf /var/www - recursively deletes a path outside the project directory</tspan>
+  </text>
+</svg>

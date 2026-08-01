@@ -12,16 +12,11 @@
 
 Your AI agent can undo the files it edits. It cannot undo `terraform destroy`.
 
+<img src="assets/demo.svg" alt="Four commands checked. kubectl get pods and rm -rf ./build pass silently. git push --force and terraform destroy are both flagged as reaching beyond this machine." width="720">
+
+**Works with Claude Code, Cursor, and Codex CLI.**
+
 </div>
-
-```
-$ blastradius check "terraform destroy -auto-approve"
-
-  confirm terraform destroy -auto-approve
-  reach: remote
-
-  - terraform destroy -auto-approve - destroys every resource in the targeted state
-```
 
 ---
 
@@ -241,17 +236,11 @@ human reviews it. Given the alternative, it is the right trade.
 
 **It asks, it does not block.** `permissionDecision: "ask"` surfaces the reach and hands you the decision. You know things it does not.
 
-**It cannot be talked around.** The parser respects quoting and escapes, unwraps `sudo -u deploy`, follows `$(...)` and backticks, and inspects what you send through `ssh`:
+**It cannot be talked around.** The parser respects quoting and escapes, unwraps `sudo -u deploy`, follows `$(...)` and backticks, reads local wrapper scripts, and inspects what you send through `ssh`:
 
-```
-$ blastradius check "ssh deploy@web01 'rm -rf /var/www'"
+<img src="assets/demo-ssh.svg" alt="blastradius check on an ssh command, showing two findings: the ssh itself and the rm inside its payload" width="660">
 
-  confirm ssh deploy@web01 'rm -rf /var/www'
-  reach: remote
-
-  - ssh deploy@web01 rm -rf /var/www - runs on, or copies to, another machine
-  - rm -rf /var/www - recursively deletes a path outside the project directory
-```
+Two findings, not one. The `rm` inside the payload is judged on its own merits, because that is the part that does the damage.
 
 A command it cannot parse is escalated, never waved through. Of the 81 tests, 10 are bypass attempts, 6 prove config cannot weaken the guard, and 2 prove a wrapper script cannot read outside the project, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
 

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="851" height="536" viewBox="0 0 851 536" role="img" aria-label="blastradius terminal output">
+  <rect width="851" height="536" rx="8" fill="#0d1117"/>
+  <text font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14" fill="#c9d1d9" xml:space="preserve">
+    <tspan x="18.0" y="32" fill="#6e7681">$</tspan><tspan x="26.4" y="32"> blastradius check &quot;kubectl get pods&quot;</tspan>
+    
+    <tspan x="18.0" y="72">  </tspan><tspan x="34.8" y="72" fill="#7ee787" font-weight="bold">ok      </tspan><tspan x="102.0" y="72">kubectl get pods</tspan>
+    <tspan x="18.0" y="92">  </tspan><tspan x="34.8" y="92" fill="#6e7681">reach: remote</tspan>
+    <tspan x="18.0" y="112">  </tspan><tspan x="34.8" y="112" fill="#6e7681">reaches beyond this machine, but changes no state</tspan>
+    
+    <tspan x="18.0" y="152" fill="#6e7681">$</tspan><tspan x="26.4" y="152"> blastradius check &quot;rm -rf ./build&quot;</tspan>
+    
+    <tspan x="18.0" y="192">  </tspan><tspan x="34.8" y="192" fill="#7ee787" font-weight="bold">ok      </tspan><tspan x="102.0" y="192">rm -rf ./build</tspan>
+    <tspan x="18.0" y="212">  </tspan><tspan x="34.8" y="212" fill="#6e7681">reach: local</tspan>
+    <tspan x="18.0" y="232">  </tspan><tspan x="34.8" y="232" fill="#6e7681">stays inside the project</tspan>
+    
+    <tspan x="18.0" y="272" fill="#6e7681">$</tspan><tspan x="26.4" y="272"> blastradius check &quot;git push --force origin main&quot;</tspan>
+    
+    <tspan x="18.0" y="312">  </tspan><tspan x="34.8" y="312" fill="#e3b341" font-weight="bold">confirm </tspan><tspan x="102.0" y="312">git push --force origin main</tspan>
+    <tspan x="18.0" y="332">  </tspan><tspan x="34.8" y="332" fill="#6e7681">reach: remote</tspan>
+    
+    <tspan x="18.0" y="372">  </tspan><tspan x="34.8" y="372" fill="#e3b341">-</tspan><tspan x="43.2" y="372"> git push --force origin - force-pushes to a shared remote, overwriting other people&apos;s commits</tspan>
+    
+    <tspan x="18.0" y="412" fill="#6e7681">$</tspan><tspan x="26.4" y="412"> blastradius check &quot;terraform destroy -auto-approve&quot;</tspan>
+    
+    <tspan x="18.0" y="452">  </tspan><tspan x="34.8" y="452" fill="#e3b341" font-weight="bold">confirm </tspan><tspan x="102.0" y="452">terraform destroy -auto-approve</tspan>
+    <tspan x="18.0" y="472">  </tspan><tspan x="34.8" y="472" fill="#6e7681">reach: remote</tspan>
+    
+    <tspan x="18.0" y="512">  </tspan><tspan x="34.8" y="512" fill="#e3b341">-</tspan><tspan x="43.2" y="512"> terraform destroy -auto-approve - destroys every resource in the targeted state</tspan>
+  </text>
+</svg>

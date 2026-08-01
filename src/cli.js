@@ -6,7 +6,11 @@ const path = require('node:path');
 const { assess, readContext } = require('./classify');
 const { runHook } = require('./hook');
 
-const COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
+// FORCE_COLOR lets docs tooling and CI capture the coloured output that a
+// terminal would show. Without it, anything that pipes stdout gets plain
+// text, which is right for scripts and useless for a screenshot.
+const COLOR = (process.env.FORCE_COLOR === '1' || process.stdout.isTTY)
+  && !process.env.NO_COLOR;
 const c = (code, text) => (COLOR ? `[${code}m${text}[0m` : text);
 const dim = (t) => c('2', t);
 const bold = (t) => c('1', t);
@@ -47,15 +51,17 @@ function renderResult(command, result) {
   lines.push(`  ${c(badge.color, bold(badge.label.padEnd(8)))}${command}`);
   lines.push(`  ${dim(`reach: ${result.radius}`)}`);
 
-  if (result.reasons.length) {
-    lines.push('');
-    result.reasons.forEach((r) => lines.push(`  ${c(badge.color, '-')} ${r}`));
-  }
-
+  // An `ok` verdict gets one line and nothing else. It is the most common
+  // outcome by far, and the whole promise of the tool is that it does not
+  // editorialise about work you are allowed to do. Listing why a safe
+  // command is safe is exactly the noise that gets a guard uninstalled.
   if (result.severity === 'ok') {
     lines.push(`  ${dim(result.radius === 'local'
-      ? 'nothing here leaves the project'
+      ? 'stays inside the project'
       : 'reaches beyond this machine, but changes no state')}`);
+  } else if (result.reasons.length) {
+    lines.push('');
+    result.reasons.forEach((r) => lines.push(`  ${c(badge.color, '-')} ${r}`));
   }
 
   lines.push('');
