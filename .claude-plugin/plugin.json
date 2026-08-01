@@ -1,7 +1,7 @@
 {
   "name": "blastradius",
   "displayName": "blastradius",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "Guards shell commands that leave your machine. Agent checkpointing covers file edits and explicitly does not cover bash, which is where ssh, terraform, kubectl and force-push live.",
   "author": {
     "name": "Corey",

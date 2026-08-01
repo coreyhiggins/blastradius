@@ -73,9 +73,14 @@ Most teams already have these rules written down as prose, in a CLAUDE.md or a
 runbook, where they work only as long as somebody remembers them. A
 `.blastradius.json` in your project root turns them into checks.
 
-See [`game-server.json`](game-server.json), [`web-deploy.json`](web-deploy.json),
-and [`data-team.json`](data-team.json) in this directory for worked examples
-you can copy.
+Four worked configs in this directory, all verified in CI:
+
+| | |
+|---|---|
+| [`solo-managed.json`](solo-managed.json) | Working alone on Vercel, Supabase, Firebase, Railway. Guards deploys to live, database resets, live payment keys, and losing your own uncommitted work. |
+| [`web-deploy.json`](web-deploy.json) | A web app on a shared VPS with nginx and systemd. |
+| [`game-server.json`](game-server.json) | Live game servers, where a routine restart is not routine with players connected. |
+| [`data-team.json`](data-team.json) | Warehouses and pipelines, where the expensive mistakes are often read-shaped. |
 
 Test a rule before you trust it:
 

@@ -1,0 +1,56 @@
+{
+  "_comment": "A solo developer shipping to managed platforms: Vercel, Netlify, Supabase, Firebase, Railway, Fly. Copy to your project root as .blastradius.json and gitignore it.",
+
+  "_why_this_one_is_different": "The other example configs guard servers, where the dangerous commands look dangerous. Here they do not. `prisma migrate reset` reads like a dev convenience and wipes the database. `vercel --prod` is one flag away from a harmless preview. And the most common real loss for someone working alone is not production at all, it is an hour of uncommitted work destroyed by `git reset --hard`. The built-in rules stay quiet on that on purpose, because it is local and most people do not want to be asked. If you do want to be asked, that is exactly what a config is for.",
+
+  "rules": [
+    {
+      "id": "database-reset",
+      "when": { "pattern": "(prisma\\s+migrate\\s+reset|db\\s+reset|drizzle-kit\\s+drop|sequelize\\s+db:drop|--accept-data-loss|--force-reset)" },
+      "severity": "danger",
+      "why": "This drops every table and recreates them empty. It reads like a dev convenience, and it is, right up until the connection string points at the database with your real users in it. Check which environment you are pointed at first."
+    },
+    {
+      "id": "deploy-to-production",
+      "when": { "pattern": "(vercel|netlify|firebase|railway|fly|flyctl|wrangler|amplify)[^|;&]{0,60}(--prod|--production|deploy(?!\\s+--dry-run)|promote)" },
+      "severity": "confirm",
+      "why": "Publishes to the live site your users see, not a preview URL. There is usually no staging step in between, so this goes straight to everyone."
+    },
+    {
+      "id": "migration-against-live-data",
+      "when": { "pattern": "(supabase\\s+db\\s+push|prisma\\s+migrate\\s+deploy|drizzle-kit\\s+push|firebase\\s+firestore:(delete|indexes))" },
+      "severity": "confirm",
+      "why": "Schema changes against a hosted database. Most of these are one-way, and managed platforms often keep only a short backup window on free tiers. Take an export first."
+    },
+    {
+      "id": "discard-uncommitted-work",
+      "when": { "pattern": "git\\s+(reset\\s+--hard|clean\\s+-[a-z]*[fd]|checkout\\s+--?\\s*\\.|restore\\s+\\.)" },
+      "severity": "confirm",
+      "why": "Throws away every uncommitted change with no undo. Git cannot recover what it was never told about. If you might want any of it back, `git stash` instead, it takes the same second."
+    },
+    {
+      "id": "rewrite-shared-history",
+      "when": { "pattern": "git\\s+push\\b[^|;&]{0,60}(--force(?!-with-lease)|-f\\b)" },
+      "severity": "confirm",
+      "why": "A plain force push overwrites whatever is on the remote, including work you pushed from another machine. Prefer --force-with-lease, which refuses when the remote has moved."
+    },
+    {
+      "id": "live-payment-keys",
+      "when": { "pattern": "(sk_live_|pk_live_|rk_live_|stripe[^|;&]{0,40}--live)" },
+      "severity": "danger",
+      "why": "A live payment key. Anything run with this moves real money and appears on real statements. Test keys start with sk_test_."
+    },
+    {
+      "id": "accidental-publish",
+      "when": { "pattern": "npm\\s+publish|pnpm\\s+publish|yarn\\s+npm\\s+publish" },
+      "severity": "confirm",
+      "why": "Publishing to npm is close to permanent: unpublishing is restricted to a short window and only if nobody depends on it yet. Confirm the package name and version, and that no secrets are in the tarball."
+    },
+    {
+      "id": "environment-file-loss",
+      "when": { "pattern": "(rm|mv|>\\s*)[^|;&]{0,30}\\.env\\b(?!\\.(example|sample|template))" },
+      "severity": "confirm",
+      "why": "Your .env is deliberately not in git, which means deleting or overwriting it is unrecoverable. Copy it somewhere first."
+    }
+  ]
+}
