@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # A guard that only gets exercised when someone pushes is a guard whose
+  # rot goes unnoticed. Weekly runs catch breakage from Node releases.
+  schedule:
+    - cron: '0 9 * * 1'
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is not optional here. Path handling, drive letters, and
+        # .exe stripping are all platform-specific in the parser, and a
+        # classifier that is wrong on Windows is wrong for a lot of people.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ['18', '20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Test
+        run: node test/run-tests.js
+
+      - name: CLI smoke test
+        shell: bash
+        run: |
+          node bin/blastradius.js --version
+          node bin/blastradius.js check "kubectl get pods"
+          # exit 2 is the documented contract for anything needing confirmation
+          if node bin/blastradius.js check "terraform destroy"; then
+            echo "FAIL: a destructive remote command exited 0"
+            exit 1
+          fi
+
+      - name: Hook contract
+        shell: bash
+        run: |
+          # Safe commands must produce NO output. A guard that comments on
+          # everything gets uninstalled, so this is a contract, not a nicety.
+          out=$(echo '{"tool_name":"Bash","tool_input":{"command":"npm test"},"cwd":"."}' \
+                | node bin/blastradius.js hook)
+          if [ -n "$out" ]; then
+            echo "FAIL: hook was not silent on a safe command: $out"
+            exit 1
+          fi
+          # Risky commands must ask.
+          out=$(echo '{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"},"cwd":"."}' \
+                | node bin/blastradius.js hook)
+          case "$out" in
+            *'"permissionDecision":"ask"'*) ;;
+            *) echo "FAIL: hook did not ask on a force push: $out"; exit 1 ;;
+          esac
+
+  plugin:
+    name: plugin manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON manifests
+        run: |
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json package.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok $f"
+          done
+
+  house-style:
+    name: no em dashes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check
+        run: |
+          if grep -rn '—\|–' --include='*.md' --include='*.js' --include='*.json' . ; then
+            echo "FAIL: em or en dash found"
+            exit 1
+          fi
+          echo "clean"

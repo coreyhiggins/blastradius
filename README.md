@@ -1,8 +1,18 @@
+<div align="center">
+
 # blastradius
 
 **How far does this command reach?**
 
-Your coding agent's undo covers files. It does not cover `terraform destroy`.
+[![CI](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml/badge.svg)](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@coreyhiggins/blastradius)](https://www.npmjs.com/package/@coreyhiggins/blastradius)
+[![tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)](test/run-tests.js)
+[![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+Your AI agent can undo the files it edits. It cannot undo `terraform destroy`.
+
+</div>
 
 ```
 $ blastradius check "terraform destroy -auto-approve"
@@ -13,7 +23,50 @@ $ blastradius check "terraform destroy -auto-approve"
   - terraform destroy -auto-approve - destroys every resource in the targeted state
 ```
 
-Zero dependencies. One file of rules you can read in five minutes and disagree with.
+---
+
+## Not sure whether you need this?
+
+You need it if your AI assistant can run terminal commands. That is most of
+them now, out of the box.
+
+The part people find surprising: when your agent **edits a file**, you can
+undo it. When your agent **runs a terminal command**, you cannot. Claude Code
+says so in its own documentation:
+
+> Checkpointing does not track files modified by bash commands.
+
+So the undo button covers the safe half, and stops exactly where the expensive
+half begins. Deleting a server, wiping a database, pushing something to real
+users: all terminal commands, none of them undoable.
+
+blastradius sits in front of those and asks you first. It says nothing during
+ordinary work.
+
+**One line to install:**
+
+```bash
+npx @coreyhiggins/blastradius install
+```
+
+You will not hear from it while you build, test, or commit. You will hear from
+it the moment something is about to reach past your own computer.
+
+<details>
+<summary><b>What it looks like when it does speak up</b></summary>
+
+```
+  DANGER  kubectl delete ns payments
+  reach: remote
+
+  - Target looks like production: cluster "gke_acme_us-east1_production".
+  - kubectl delete ns [cluster: gke_acme_us-east1_production] - delete against the active cluster context
+```
+
+It read your active cluster name to work that out. The same command pointed at
+a local test cluster is a quiet `confirm` instead.
+
+</details>
 
 ---
 

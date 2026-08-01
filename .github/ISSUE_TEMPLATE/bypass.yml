@@ -1,0 +1,54 @@
+name: Bypass or missed command
+description: Something genuinely destructive came back ok, or slipped past the parser
+title: "[bypass] "
+labels: ["bypass"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most valuable report you can file. A false positive is
+        annoying; a bypass means the tool looks like it is working when it
+        is not.
+
+        If you would rather not post it publicly, use a
+        [private advisory](https://github.com/coreyhiggins/blastradius/security/advisories/new)
+        instead. Either is fine, see SECURITY.md.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command
+      description: Exactly as written, including any quoting, since quoting is often the point.
+      placeholder: 'echo $(terraform destroy)'
+    validations:
+      required: true
+
+  - type: textarea
+    id: verdict
+    attributes:
+      label: What blastradius said
+      description: "Paste the output of: npx @coreyhiggins/blastradius check \"your command\""
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: damage
+    attributes:
+      label: What it would actually do
+      description: What state changes, and where. What would not be recoverable afterwards.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of miss is it
+      options:
+        - No rule exists for this tool
+        - A rule exists but rated it too low
+        - The parser did not see the command at all (quoting, wrapper, substitution)
+        - Hidden inside an opaque script
+        - Not sure
+    validations:
+      required: true

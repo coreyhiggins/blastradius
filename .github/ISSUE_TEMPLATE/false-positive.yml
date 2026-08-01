@@ -1,0 +1,44 @@
+name: False positive
+description: It interrupted me for something that was actually safe
+title: "[false positive] "
+labels: ["false positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are real bugs, not nitpicks. Every unnecessary prompt makes
+        someone more likely to turn the guard off, and a guard nobody runs
+        protects nobody. Thank you for reporting it.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command
+      description: Exactly as you ran it. Redact hostnames or paths if you need to, but keep the shape.
+      placeholder: systemctl is-active my-service
+    validations:
+      required: true
+
+  - type: textarea
+    id: verdict
+    attributes:
+      label: What blastradius said
+      description: "Paste the output of: npx @coreyhiggins/blastradius check \"your command\""
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: why-safe
+    attributes:
+      label: Why it was safe
+      description: One line is fine. Usually it is "this only reads" or "this never leaves my machine".
+    validations:
+      required: true
+
+  - type: input
+    id: config
+    attributes:
+      label: Was a .blastradius.json in play?
+      description: If yes, paste the rule that fired. Its id appears in the output.
+      placeholder: "no / rule id: live-game-servers"
