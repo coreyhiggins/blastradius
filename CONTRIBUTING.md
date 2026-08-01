@@ -79,3 +79,32 @@ explain *why* rather than restating the line.
 
 No em dashes or en dashes anywhere, in code, comments, docs, or commit
 messages. CI enforces this.
+
+### Commits
+
+One change per commit. Subject under 55 characters, imperative mood, no
+trailing period.
+
+Most commits need no body at all. Add one only when the *why* is not obvious
+from the diff, and keep it to a line or two:
+
+```
+Look inside wrapper scripts
+
+npm run deploy and ./deploy.sh were invisible to the classifier.
+```
+
+Not this:
+
+```
+Add comprehensive wrapper script resolution capability
+
+This commit introduces a new module that handles the resolution of
+opaque wrapper scripts, addressing a gap identified during our audit
+process where certain deployment commands were not being properly
+classified by the existing rule engine...
+```
+
+The second one is longer, says less, and reads like it was generated. Explain
+the reasoning in code comments where it stays next to the thing it explains,
+or in an issue where it can be discussed. A commit body is not an essay.
