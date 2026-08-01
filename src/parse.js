@@ -27,16 +27,26 @@ const SEPARATORS = [';', '&&', '||', '|', '&', '\n'];
 function splitCommands(line) {
   const segments = [];
   const substitutions = [];
+  // Parallel to `segments`: was this command the receiving end of a pipe?
+  // It matters. `mysql dbname` on its own is an interactive session, but
+  // `gunzip -c dump.sql.gz | mysql dbname` is a full database restore that
+  // overwrites everything, and the argv alone cannot tell them apart.
+  const pipedInto = [];
 
   let current = '';
   let i = 0;
   let quote = null;          // "'" or '"' when inside a quoted run
   let unbalanced = false;
+  let nextIsPiped = false;
 
-  const push = () => {
+  const push = (viaPipe = false) => {
     const trimmed = current.trim();
-    if (trimmed) segments.push(trimmed);
+    if (trimmed) {
+      segments.push(trimmed);
+      pipedInto.push(nextIsPiped);
+    }
     current = '';
+    nextIsPiped = viaPipe;
   };
 
   while (i < line.length) {
@@ -96,7 +106,8 @@ function splitCommands(line) {
 
     const sep = SEPARATORS.find((s) => line.startsWith(s, i));
     if (sep) {
-      push();
+      // `|` feeds this command's output into the next one. `||` does not.
+      push(sep === '|');
       i += sep.length;
       continue;
     }
@@ -108,7 +119,7 @@ function splitCommands(line) {
   if (quote) unbalanced = true;
   push();
 
-  return { segments, substitutions, unbalanced };
+  return { segments, substitutions, unbalanced, pipedInto };
 }
 
 /** Index of the ')' matching the '(' at `open`, or -1 if never closed. */
@@ -210,8 +221,12 @@ function basename(token) {
  * including those hidden inside command substitutions.
  */
 function expand(line, depth = 0) {
-  const { segments, substitutions, unbalanced } = splitCommands(line);
-  const commands = segments.map((segment) => ({ raw: segment, argv: toArgv(segment) }));
+  const { segments, substitutions, unbalanced, pipedInto } = splitCommands(line);
+  const commands = segments.map((segment, i) => ({
+    raw: segment,
+    argv: toArgv(segment),
+    pipedInto: Boolean(pipedInto[i]),
+  }));
 
   // Depth cap: a substitution nested this deep is either generated or
   // adversarial, and either way it is not something to quietly unwrap.

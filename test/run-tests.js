@@ -178,6 +178,36 @@ test('stopping a service is a machine-level notice', () => {
   assert.strictEqual(at('systemctl stop nginx').severity, 'notice');
 });
 
+// --- regressions from the 166-command audit, 2026-08-01 -------------------
+
+test('AUDIT: restart counts as destructive, so configs can escalate it', () => {
+  // It stays at `notice`, so a routine restart never interrupts. The point is
+  // that it is now VISIBLE: before this, every restart in the corpus was
+  // invisible to the classifier and no custom rule could reach it.
+  const r = at('systemctl restart nginx');
+  assert.strictEqual(r.severity, 'notice');
+  assert.ok(r.reasons.join(' ').includes('interrupts'));
+});
+
+test('AUDIT: a database restore through a pipe is destructive', () => {
+  // The single most destructive line in the audit corpus, previously `ok`.
+  const r = at('gunzip -c all-databases.sql.gz | mysql');
+  assert.notStrictEqual(r.severity, 'ok', 'a full database restore classified as harmless');
+});
+
+test('AUDIT: a database client NOT fed by a pipe stays quiet', () => {
+  assert.strictEqual(at('mysql -h 127.0.0.1 arcbound').severity, 'ok');
+});
+
+test('AUDIT: || is not a pipe and must not imply a restore', () => {
+  assert.strictEqual(at('false || mysql arcbound').severity, 'ok');
+});
+
+test('AUDIT: bitvise sftpc and sexec reach another machine', () => {
+  assert.strictEqual(at('sexec deploy@host -cmd="systemctl stop nginx"').radius, 'remote');
+  assert.strictEqual(at('sftpc deploy@host -cmd="put app.jar"').radius, 'remote');
+});
+
 test('docker compose down -v is destructive because volumes hold data', () => {
   assert.strictEqual(at('docker compose down -v').severity, 'notice');
 });
@@ -279,7 +309,10 @@ test('a custom rule escalates a command the built-ins rate lower', () => {
   const before = assess('systemctl restart mc-cobblemon', { context: DEV_CTX, config: null });
   const after = assess('systemctl restart mc-cobblemon', { context: DEV_CTX, config });
 
-  assert.strictEqual(before.severity, 'ok', 'baseline changed, update this test');
+  // Baseline is `notice`: a restart is destructive but machine-scoped, so the
+  // built-ins never interrupt for it. The config knows this particular service
+  // has players connected, which is the knowledge the built-ins cannot have.
+  assert.strictEqual(before.severity, 'notice', 'baseline changed, update this test');
   assert.strictEqual(after.severity, 'danger');
   assert.ok(after.reasons[0].includes('players connected'));
 });
@@ -348,7 +381,7 @@ test('custom rules do not fire on unrelated commands', () => {
   // entirely on what the service is, which is knowledge the built-ins cannot
   // have and a project config can. That is the whole argument for custom rules.
   const r = assess('systemctl restart nginx', { context: DEV_CTX, config: cfg(ARC_RULES) });
-  assert.strictEqual(r.severity, 'ok', 'mc- rule matched a non-mc service');
+  assert.strictEqual(r.severity, 'notice', 'a live-server rule matched an unrelated service');
 });
 
 // -------------------------------------------------------------------- hook --

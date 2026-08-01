@@ -71,7 +71,7 @@ Context comes from your kubeconfig's `current-context`, your Terraform workspace
 As a Claude Code plugin, which also gives you a `/blastradius` command:
 
 ```
-/plugin marketplace add CoreyH32/blastradius
+/plugin marketplace add coreyhiggins/blastradius
 /plugin install blastradius
 ```
 

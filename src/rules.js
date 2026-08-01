@@ -58,7 +58,10 @@ function isRemoteHost(host) {
 const RULES = [
   // ---- Reaches another machine -------------------------------------------
   {
-    match: ['ssh', 'scp', 'sftp', 'rsync'],
+    // sftpc and sexec are Bitvise. They are not obscure: they are what real
+    // deploy runbooks use to reach production, and leaving them out meant
+    // every actual deploy command sailed past the guard.
+    match: ['ssh', 'scp', 'sftp', 'rsync', 'sftpc', 'sexec', 'plink', 'pscp'],
     radius: (argv, cmd) => {
       // rsync is only remote when an argument names a host.
       if (cmd === 'rsync') {
@@ -113,9 +116,17 @@ const RULES = [
   {
     match: ['mysql', 'psql', 'mongosh', 'mongo', 'redis-cli', 'mariadb'],
     radius: (argv) => (isRemoteHost(flagValue(argv, '-h', '--host')) ? REMOTE : MACHINE),
-    destructive: (argv) => {
+    destructive: (argv, cmd, meta = {}) => {
       const inline = (flagValue(argv, '-e', '--eval', '--command', '-c') || '').toLowerCase();
-      return /\b(drop|truncate|delete\s+from|flushall|flushdb)\b/.test(inline);
+      if (/\b(drop|truncate|delete\s+from|flushall|flushdb)\b/.test(inline)) return true;
+      // A database client on the receiving end of a pipe is being fed a
+      // script. In practice that is a restore, and a restore overwrites
+      // everything it touches. `gunzip -c all-databases.sql.gz | mysql` was
+      // the single most destructive line in a 166-command audit corpus, and
+      // it classified as harmless until this existed.
+      if (meta.pipedInto) return true;
+      // Reading a dump in via redirection is the same operation.
+      return argv.some((a) => a === '<');
     },
     why: (argv) => (isRemoteHost(flagValue(argv, '-h', '--host'))
       ? `connects to database host ${flagValue(argv, '-h', '--host')}`
@@ -156,8 +167,15 @@ const RULES = [
   {
     match: ['systemctl', 'service', 'launchctl', 'sc'],
     radius: MACHINE,
-    destructive: (argv) => argv.slice(1).some((a) => /^(stop|disable|mask|kill|unload|delete)$/i.test(a)),
-    why: 'stops or disables a service on this machine',
+    // `restart` belongs here. It causes real downtime, and leaving it out
+    // made every restart in a 166-command audit invisible to the classifier.
+    // It still lands at `machine`, so it produces a `notice` and never
+    // interrupts: routine restarts stay quiet, but a project config can now
+    // escalate the ones that actually matter (a service with users on it).
+    destructive: (argv) => argv.slice(1).some((a) => /^(stop|disable|mask|kill|unload|delete|restart|reload)$/i.test(a)),
+    why: (argv) => (argv.slice(1).some((a) => /^(restart|reload)$/i.test(a))
+      ? 'restarts a service, which interrupts anything currently using it'
+      : 'stops or disables a service on this machine'),
   },
   {
     match: ['apt', 'apt-get', 'yum', 'dnf', 'pacman', 'brew', 'zypper', 'apk'],

@@ -16,8 +16,8 @@ const { loadConfig, applyCustomRules } = require('./config');
 // missed one cost somebody 2.5 years of records.
 const PROD_PATTERN = /(^|[-_./])(prod|production|prd|live|master|main|primary)([-_./]|$)/i;
 
-function resolve(value, argv, cmd) {
-  return typeof value === 'function' ? value(argv, cmd) : value;
+function resolve(value, argv, cmd, meta) {
+  return typeof value === 'function' ? value(argv, cmd, meta) : value;
 }
 
 /**
@@ -73,16 +73,16 @@ function findRule(cmd) {
 }
 
 /** Classify a single argv. Returns a finding, or null when unremarkable. */
-function classifyArgv(argv, ctx, depth = 0) {
+function classifyArgv(argv, ctx, depth = 0, meta = {}) {
   if (!argv.length) return null;
 
   const cmd = basename(argv[0]);
   const rule = findRule(cmd);
   if (!rule) return null;
 
-  const radius = resolve(rule.radius, argv, cmd) || LOCAL;
-  const destructive = Boolean(resolve(rule.destructive, argv, cmd));
-  const why = resolve(rule.why, argv, cmd);
+  const radius = resolve(rule.radius, argv, cmd, meta) || LOCAL;
+  const destructive = Boolean(resolve(rule.destructive, argv, cmd, meta));
+  const why = resolve(rule.why, argv, cmd, meta);
 
   const finding = {
     command: cmd,
@@ -115,8 +115,8 @@ function classifyLine(line, ctx = readContext(), depth = 0) {
   const { commands, unbalanced } = expand(line);
   const findings = [];
 
-  for (const { argv } of commands) {
-    const finding = classifyArgv(argv, ctx, depth);
+  for (const { argv, pipedInto } of commands) {
+    const finding = classifyArgv(argv, ctx, depth, { pipedInto });
     if (finding) findings.push(finding);
   }
 

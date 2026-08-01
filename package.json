@@ -39,10 +39,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CoreyH32/blastradius.git"
+    "url": "git+https://github.com/coreyhiggins/blastradius.git"
   },
-  "homepage": "https://github.com/CoreyH32/blastradius#readme",
+  "homepage": "https://github.com/coreyhiggins/blastradius#readme",
   "bugs": {
-    "url": "https://github.com/CoreyH32/blastradius/issues"
+    "url": "https://github.com/coreyhiggins/blastradius/issues"
   }
 }

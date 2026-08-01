@@ -3,7 +3,7 @@
   "description": "Safety guards for AI coding agents that have shell access. Classifies how far a command reaches before it runs.",
   "owner": {
     "name": "Corey",
-    "url": "https://github.com/CoreyH32"
+    "url": "https://github.com/coreyhiggins"
   },
   "plugins": [
     {

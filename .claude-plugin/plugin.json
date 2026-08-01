@@ -5,10 +5,10 @@
   "description": "Guards shell commands that leave your machine. Agent checkpointing covers file edits and explicitly does not cover bash, which is where ssh, terraform, kubectl and force-push live.",
   "author": {
     "name": "Corey",
-    "url": "https://github.com/CoreyH32"
+    "url": "https://github.com/coreyhiggins"
   },
-  "homepage": "https://github.com/CoreyH32/blastradius#readme",
-  "repository": "https://github.com/CoreyH32/blastradius",
+  "homepage": "https://github.com/coreyhiggins/blastradius#readme",
+  "repository": "https://github.com/coreyhiggins/blastradius",
   "license": "MIT",
   "keywords": [
     "safety",
