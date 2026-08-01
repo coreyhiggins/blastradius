@@ -1,0 +1,44 @@
+{
+  "name": "blastradius",
+  "version": "0.1.0",
+  "description": "How far does this command reach? Guards AI coding agents against commands that leave your machine. Zero dependencies.",
+  "bin": {
+    "blastradius": "bin/blastradius.js"
+  },
+  "main": "src/index.js",
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/run-tests.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "cursor",
+    "ai-agent",
+    "agent-safety",
+    "guardrail",
+    "hook",
+    "devops",
+    "terraform",
+    "kubectl",
+    "ssh",
+    "production"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CoreyH32/blastradius.git"
+  },
+  "homepage": "https://github.com/CoreyH32/blastradius#readme",
+  "bugs": {
+    "url": "https://github.com/CoreyH32/blastradius/issues"
+  }
+}
