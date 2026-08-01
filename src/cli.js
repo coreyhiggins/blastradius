@@ -88,25 +88,69 @@ function cmdContext() {
   return 0;
 }
 
-function cmdInstall() {
-  const snippet = {
-    hooks: {
-      PreToolUse: [
-        {
+const INSTALLERS = {
+  'claude-code': {
+    file: path.join('.claude', 'settings.json'),
+    note: 'Merge the hooks key if the file already exists.',
+    snippet: {
+      hooks: {
+        PreToolUse: [{
           matcher: 'Bash',
           hooks: [{ type: 'command', command: 'npx -y @coreyhiggins/blastradius hook' }],
-        },
-      ],
+        }],
+      },
     },
-  };
+  },
+  cursor: {
+    file: path.join('.cursor', 'hooks.json'),
+    note: 'Project hooks need the workspace to be trusted. ~/.cursor/hooks.json works globally.',
+    snippet: {
+      version: 1,
+      hooks: {
+        beforeShellExecution: [{
+          command: 'npx -y @coreyhiggins/blastradius hook-cursor',
+          timeout: 10,
+        }],
+      },
+    },
+  },
+  codex: {
+    file: path.join('.codex', 'hooks.json'),
+    note: 'Codex also needs "[features]\\nhooks = true" in ~/.codex/config.toml.\n  Codex hooks cannot prompt, so blastradius blocks instead of asking there.',
+    snippet: {
+      hooks: {
+        PreToolUse: [{
+          matcher: 'Bash',
+          hooks: [{
+            type: 'command',
+            command: 'npx -y @coreyhiggins/blastradius hook-codex',
+            timeout: 10,
+          }],
+        }],
+      },
+    },
+  },
+};
 
-  const settingsPath = path.join('.claude', 'settings.json');
-  process.stdout.write(`\n  Add this to ${bold(settingsPath)}:\n\n`);
-  process.stdout.write(`${JSON.stringify(snippet, null, 2).split('\n').map((l) => `  ${l}`).join('\n')}\n\n`);
+function cmdInstall(harness) {
+  const key = (harness || 'claude-code').toLowerCase();
+  const target = INSTALLERS[key];
 
-  if (fs.existsSync(settingsPath)) {
-    process.stdout.write(`  ${dim('A settings.json already exists. Merge the hooks key rather than replacing it.')}\n\n`);
+  if (!target) {
+    process.stderr.write(`blastradius: unknown harness "${harness}"\n`);
+    process.stdout.write(`\n  Supported: ${Object.keys(INSTALLERS).join(', ')}\n`);
+    process.stdout.write(`  Example: ${bold('blastradius install cursor')}\n\n`);
+    return 1;
   }
+
+  process.stdout.write(`\n  Add this to ${bold(target.file)}:\n\n`);
+  process.stdout.write(`${JSON.stringify(target.snippet, null, 2).split('\n').map((l) => `  ${l}`).join('\n')}\n\n`);
+  process.stdout.write(`  ${dim(target.note)}\n`);
+
+  if (fs.existsSync(target.file)) {
+    process.stdout.write(`  ${dim('That file already exists, so merge rather than replace.')}\n`);
+  }
+  process.stdout.write('\n');
   return 0;
 }
 
@@ -116,8 +160,10 @@ async function main(argv) {
   switch (command) {
     case 'check':   return cmdCheck(rest);
     case 'context': return cmdContext();
-    case 'install': return cmdInstall();
-    case 'hook':    return runHook();
+    case 'install': return cmdInstall(rest[0]);
+    case 'hook':    return runHook('claude-code');
+    case 'hook-cursor': return runHook('cursor');
+    case 'hook-codex':  return runHook('codex');
     case '--version':
     case '-v': {
       const pkg = require('../package.json');

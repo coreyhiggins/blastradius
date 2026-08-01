@@ -501,6 +501,51 @@ test('hook tolerates malformed payloads instead of throwing', () => {
   assert.strictEqual(decide({ tool_name: 'Bash', tool_input: { command: 42 } }), null);
 });
 
+// --- other harnesses ---------------------------------------------------
+
+const { decideCursor, decideCodex } = require('../src/hook');
+
+const cursorPayload = (command) => ({ command, cwd: process.cwd(), hook_event_name: 'beforeShellExecution' });
+
+test('CURSOR: allows a safe command explicitly', () => {
+  assert.deepStrictEqual(decideCursor(cursorPayload('npm test')), { permission: 'allow' });
+});
+
+test('CURSOR: asks on a remote destructive command', () => {
+  const out = decideCursor(cursorPayload('git push --force origin main'));
+  assert.strictEqual(out.permission, 'ask');
+  assert.ok(out.user_message.includes('blastradius'));
+  assert.ok(out.agent_message, 'no agent_message, the model gets no guidance');
+});
+
+test('CURSOR: reads the flat payload shape, not tool_input', () => {
+  // Cursor sends {command}, not {tool_input:{command}}. Getting this wrong
+  // means the hook silently never fires, which is the worst failure mode.
+  assert.strictEqual(decideCursor({ tool_input: { command: 'terraform destroy' } }), null);
+});
+
+test('CODEX: stays silent on a safe command', () => {
+  assert.strictEqual(decideCodex(bash('npm test')), null);
+});
+
+test('CODEX: denies rather than asks, because ask is unsupported there', () => {
+  const out = decideCodex(bash('git push --force origin main'));
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+  assert.strictEqual(out.hookSpecificOutput.hookEventName, 'PreToolUse');
+});
+
+test('CODEX: the deny reason is never empty', () => {
+  // Codex treats an empty reason as a failed hook and runs the command
+  // anyway, so this is a correctness requirement, not a nicety.
+  const out = decideCodex(bash('terraform destroy'));
+  assert.ok(out.hookSpecificOutput.permissionDecisionReason.trim().length > 20);
+});
+
+test('CODEX: says plainly that it blocked rather than prompted', () => {
+  const out = decideCodex(bash('terraform destroy'));
+  assert.ok(out.hookSpecificOutput.permissionDecisionReason.includes('cannot prompt'));
+});
+
 test('hook escalates a command it cannot parse', () => {
   const out = decide(bash('rm -rf "/etc'));
   assert.ok(out, 'unparseable command was silently allowed');

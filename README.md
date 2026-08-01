@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml/badge.svg)](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coreyhiggins/blastradius)](https://www.npmjs.com/package/@coreyhiggins/blastradius)
-[![tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)](test/run-tests.js)
+[![tests](https://img.shields.io/badge/tests-81%20passing-brightgreen)](test/run-tests.js)
 [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -121,32 +121,48 @@ Context comes from your kubeconfig's `current-context`, your Terraform workspace
 
 ## Install
 
-As a Claude Code plugin, which also gives you a `/blastradius` command:
+Pick your agent. Each prints a config snippet to paste.
+
+```bash
+npx @coreyhiggins/blastradius install              # Claude Code
+npx @coreyhiggins/blastradius install cursor       # Cursor
+npx @coreyhiggins/blastradius install codex        # Codex CLI
+```
+
+Claude Code users can install it as a plugin instead, which also adds a
+`/blastradius` command:
 
 ```
 /plugin marketplace add coreyhiggins/blastradius
 /plugin install blastradius
 ```
 
-Or wire the hook up by hand:
+### What each agent can actually do
 
-```bash
-npx @coreyhiggins/blastradius install
-```
+Harnesses do not offer the same controls, and the difference matters.
 
-That prints the snippet for `.claude/settings.json`:
+| Agent | Hook | Can it ask you? |
+|---|---|---|
+| Claude Code | `PreToolUse` | Yes |
+| Cursor | `beforeShellExecution` | Yes |
+| Codex CLI | `PreToolUse` | **No. It blocks instead.** |
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "npx -y @coreyhiggins/blastradius hook" }]
-      }
-    ]
-  }
-}
+**Codex is the exception worth reading.** Its hook contract explicitly
+rejects "ask" and treats it as a failed hook, which means the command runs
+anyway. Only an outright block does anything there. So on Codex, blastradius
+**denies** instead of prompting, and tells you to re-run the command yourself
+if you meant it.
+
+That is a real departure from this tool's usual rule of asking rather than
+blocking, and it is not a choice we get to make. A blocked command you can
+re-run beats a database you cannot get back.
+
+Codex also needs hooks turned on, since they are off by default:
+
+```toml
+# ~/.codex/config.toml
+[features]
+hooks = true
 ```
 
 ## Your own rules
@@ -230,7 +246,7 @@ $ blastradius check "ssh deploy@web01 'rm -rf /var/www'"
   - rm -rf /var/www - recursively deletes a path outside the project directory
 ```
 
-A command it cannot parse is escalated, never waved through. Of the 64 tests, 10 are bypass attempts and 6 more prove config cannot weaken the guard, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
+A command it cannot parse is escalated, never waved through. Of the 81 tests, 10 are bypass attempts, 6 prove config cannot weaken the guard, and 2 prove a wrapper script cannot read outside the project, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
 
 ## Usage
 
