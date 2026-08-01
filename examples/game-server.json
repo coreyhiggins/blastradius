@@ -1,0 +1,36 @@
+{
+  "_comment": "Live game servers. The defining feature of this environment is that a 'routine' restart is not routine when people are connected to it. Copy to your project root as .blastradius.json and gitignore it.",
+
+  "rules": [
+    {
+      "id": "live-game-server",
+      "when": { "pattern": "(restart|stop|kill|disable|mask|reload)\\s+\\S*(mc-|minecraft|gameserver)[a-z0-9_-]*" },
+      "severity": "danger",
+      "why": "Live server with players connected. Restarting drops everyone mid-session and can roll back unsaved inventories. Send an in-game countdown first."
+    },
+    {
+      "id": "proxy-disruption",
+      "when": { "pattern": "(restart|stop|kill|disable)\\s+\\S*(velocity|bungee|waterfall|proxy)" },
+      "severity": "danger",
+      "why": "The proxy is the single join address for the whole network. Taking it down disconnects every player on every backend server at once, not just one."
+    },
+    {
+      "id": "world-data",
+      "when": { "pattern": "(rm|mv|cp|chown|chmod|truncate|tar|unzip)\\b[^|;&]{0,60}(world|playerdata|\\.mca\\b|region/)" },
+      "severity": "danger",
+      "why": "World or player data. There is no undo, and player inventories do not come back. Verify a backup exists and is restorable before touching this."
+    },
+    {
+      "id": "console-command-injection",
+      "when": { "pattern": "(tmux|screen)[^|;&]{0,60}send-keys" },
+      "severity": "confirm",
+      "why": "Sends a command straight into the live server console. /stop, /op, and /ban all take effect immediately with no confirmation."
+    },
+    {
+      "id": "plugin-hot-swap",
+      "when": { "pattern": "(cp|mv|rm)\\b[^|;&]{0,60}plugins/" },
+      "severity": "confirm",
+      "why": "Swapping a plugin jar under a running server usually does nothing until restart, and sometimes corrupts state. Stage it, then do a warned restart."
+    }
+  ]
+}

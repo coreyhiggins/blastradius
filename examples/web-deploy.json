@@ -1,0 +1,42 @@
+{
+  "_comment": "A web app on a single VPS with nginx and systemd. The recurring theme here is that one box serves several sites, so a mistake aimed at one of them takes down all of them. Copy to your project root as .blastradius.json and gitignore it.",
+
+  "rules": [
+    {
+      "id": "shared-nginx",
+      "when": { "pattern": "(systemctl|service)\\s+(restart|reload|stop)\\s+nginx" },
+      "severity": "confirm",
+      "why": "One nginx instance fronts every site on this box, not just this project. A bad config takes them all down together. Run nginx -t first."
+    },
+    {
+      "id": "release-symlink",
+      "when": { "pattern": "ln\\s+-[a-z]*s[a-z]*\\b[^|;&]{0,80}(current|live|active)" },
+      "severity": "confirm",
+      "why": "This is the atomic swap that makes a release live. Confirm the target directory is the build you actually tested, because the swap itself is instant and silent."
+    },
+    {
+      "id": "webroot-delete",
+      "when": { "pattern": "rm\\s+-[a-z]*r[a-z]*\\b[^|;&]{0,60}(/var/www|/srv/www|/usr/share/nginx)" },
+      "severity": "danger",
+      "why": "Deleting inside the webroot. If it hits the live release rather than an old one, the site is down until you can rebuild and redeploy."
+    },
+    {
+      "id": "certificate-material",
+      "when": { "pattern": "(cat|cp|mv|rm|scp|curl|base64)\\b[^|;&]{0,60}(\\.key\\b|letsencrypt|/etc/ssl/private)" },
+      "severity": "danger",
+      "why": "TLS private key material. Copying it off the box is an incident; deleting it takes HTTPS down for every site using it."
+    },
+    {
+      "id": "database-migration",
+      "when": { "pattern": "(migrate|migration)[^|;&]{0,40}(up|deploy|latest|--force)|prisma\\s+migrate\\s+deploy|rails\\s+db:migrate" },
+      "severity": "confirm",
+      "why": "Schema migrations are frequently one-way. Take a dump first and confirm which database the connection string actually points at."
+    },
+    {
+      "id": "opaque-deploy-script",
+      "when": { "pattern": "(^|[;&|]\\s*)(bash\\s+)?(\\./)?(deploy|release|cutover|publish)[a-z_-]*\\.(sh|bat|ps1)\\b" },
+      "severity": "confirm",
+      "why": "A deploy wrapper hides what it runs. blastradius reads local scripts where it can, but confirm you know which environment this one targets."
+    }
+  ]
+}

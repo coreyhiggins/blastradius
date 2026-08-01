@@ -1,0 +1,36 @@
+{
+  "_comment": "Analytics and data engineering. The thing that makes this environment different is that the expensive mistakes are often read-shaped rather than delete-shaped: a query against the wrong warehouse, or a copy of a table that should never have left. Copy to your project root as .blastradius.json and gitignore it.",
+
+  "rules": [
+    {
+      "id": "warehouse-write",
+      "when": { "pattern": "(bq|snowsql|psql|mysql|athena|dbt)\\b[^|;&]{0,120}(drop|truncate|delete\\s+from|create\\s+or\\s+replace|overwrite|--full-refresh)" },
+      "severity": "danger",
+      "why": "Destructive write against a warehouse. These tables are usually rebuilt from pipelines that take hours, and a dropped table can break every dashboard downstream of it."
+    },
+    {
+      "id": "dump-restore",
+      "when": { "pattern": "(gunzip|zcat|cat)[^|]{0,80}\\|\\s*(sudo\\s+)?(mysql|psql|mongorestore)" },
+      "severity": "danger",
+      "why": "Restoring a dump overwrites every table it contains. Confirm the target host and take a fresh dump first, because a restore aimed at the wrong environment is not recoverable by re-running it."
+    },
+    {
+      "id": "pii-export",
+      "when": { "pattern": "(scp|rsync|aws\\s+s3\\s+cp|gsutil\\s+cp|curl\\s+-T)\\b[^|;&]{0,80}(customer|user|pii|personal|payroll|ssn|tax)" },
+      "severity": "danger",
+      "why": "Moving what looks like personal data off its system of record. This is a compliance question before it is a technical one, and it is not something a backup undoes."
+    },
+    {
+      "id": "public-bucket",
+      "when": { "pattern": "(aws\\s+s3|gsutil)[^|;&]{0,80}(public-read|allUsers|acl\\s+public)" },
+      "severity": "danger",
+      "why": "Making storage publicly readable. Once an object has been public, assume it was fetched, because crawlers are faster than you are."
+    },
+    {
+      "id": "pipeline-backfill",
+      "when": { "pattern": "(airflow|dagster|prefect)\\b[^|;&]{0,60}(backfill|clear|delete|reset)" },
+      "severity": "confirm",
+      "why": "Backfills and clears re-run history. On a wide date range this can cost real money and flood downstream consumers with duplicate events."
+    }
+  ]
+}

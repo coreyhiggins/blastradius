@@ -165,6 +165,13 @@ Codex also needs hooks turned on, since they are off by default:
 hooks = true
 ```
 
+## Examples
+
+[**examples/**](examples/) has four worked walkthroughs, from trying it in 30 seconds
+with no install through to enforcing team rules in CI, plus three ready-made
+configs you can copy: a game server, a web deploy on a shared VPS, and a data
+team. All three are verified in CI against real commands.
+
 ## Your own rules
 
 The built-in table knows `systemctl restart` is routine. It cannot know that
