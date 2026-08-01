@@ -162,10 +162,31 @@ hooks = true
 
 ## Examples
 
-[**examples/**](examples/) has four worked walkthroughs, from trying it in 30 seconds
-with no install through to enforcing team rules in CI, plus three ready-made
-configs you can copy: a game server, a web deploy on a shared VPS, and a data
-team. All three are verified in CI against real commands.
+[**examples/**](examples/) has four worked walkthroughs, from trying it in 30
+seconds with no install through to enforcing team rules in CI, plus four
+ready-made configs you can copy: working solo on managed platforms like Vercel
+and Supabase, a web app on a shared VPS, live game servers, and a data team.
+
+All four are verified in CI on every push, against both the commands they are
+meant to catch and a list of ordinary ones they must stay silent for. A broken
+example is worse than no example, because someone copies it and believes they
+are covered.
+
+Not sure what a verdict means? Ask for the long version:
+
+```bash
+npx @coreyhiggins/blastradius explain "docker compose down -v"
+```
+
+```
+  What you cannot get back
+    Volume contents. Databases run in Docker keep their data in volumes, so
+    "down -v" deletes the database, not just the container.
+
+  Before you run it
+    - docker volume ls to see what would go
+    - drop the -v flag if you only meant to stop the containers
+```
 
 ## Your own rules
 
