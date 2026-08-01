@@ -78,10 +78,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Character codes, not literals. A checker that contains the thing it
+      # forbids fails on its own source, which is a silly way to redden a
+      # build.
       - name: Check
         run: |
-          if grep -rn '—\|–' --include='*.md' --include='*.js' --include='*.json' . ; then
-            echo "FAIL: em or en dash found"
-            exit 1
-          fi
-          echo "clean"
+          node -e '
+            const fs = require("fs"), path = require("path");
+            const BAD = [0x2014, 0x2013].map((c) => String.fromCharCode(c));
+            const EXT = [".md", ".js", ".json", ".yml"];
+            const hits = [];
+            (function walk(dir) {
+              for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+                if (e.name === "node_modules" || e.name === ".git") continue;
+                const p = path.join(dir, e.name);
+                if (e.isDirectory()) { walk(p); continue; }
+                if (!EXT.includes(path.extname(e.name))) continue;
+                const text = fs.readFileSync(p, "utf8");
+                text.split("\n").forEach((line, i) => {
+                  if (BAD.some((b) => line.includes(b))) hits.push(p + ":" + (i + 1));
+                });
+              }
+            })(".");
+            if (hits.length) { console.error("em or en dash found:\n  " + hits.join("\n  ")); process.exit(1); }
+            console.log("clean");
+          '
