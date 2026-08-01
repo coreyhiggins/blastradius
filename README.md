@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml/badge.svg)](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coreyhiggins/blastradius)](https://www.npmjs.com/package/@coreyhiggins/blastradius)
-[![tests](https://img.shields.io/badge/tests-85%20passing-brightgreen)](test/run-tests.js)
+[![tests](https://img.shields.io/badge/tests-92%20passing-brightgreen)](test/run-tests.js)
 [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -160,6 +160,28 @@ Codex also needs hooks turned on, since they are off by default:
 hooks = true
 ```
 
+## What is already in your project?
+
+The hook is reactive: it speaks when an agent is about to run something. `audit`
+is the other direction. It reads what your project has already committed, in
+package.json scripts, shell scripts, CI workflows, and Makefiles, and tells you
+what a coding agent could invoke without anyone stopping to think.
+
+```bash
+npx @coreyhiggins/blastradius audit
+```
+
+```
+  package.json
+    confirm scripts.deploy    rsync -a --delete ./dist deploy@web01:/srv/app
+    DANGER  scripts.nuke      kubectl delete ns payments
+
+  2 of 40 commands reach past this machine, 1 at a target that looks like production
+```
+
+It reads only, and never runs a line it finds. Exit 2 when anything is
+flagged, so it composes into CI.
+
 ## Examples
 
 [**examples/**](examples/) has four worked walkthroughs, from trying it in 30
@@ -263,13 +285,14 @@ human reviews it. Given the alternative, it is the right trade.
 
 Two findings, not one. The `rm` inside the payload is judged on its own merits, because that is the part that does the damage.
 
-A command it cannot parse is escalated, never waved through. Of the 85 tests, 10 are bypass attempts, 6 prove config cannot weaken the guard, and 2 prove a wrapper script cannot read outside the project, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
+A command it cannot parse is escalated, never waved through. Of the 92 tests, 10 are bypass attempts, 6 prove config cannot weaken the guard, and 2 prove a wrapper script cannot read outside the project, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
 
 ## Usage
 
 ```bash
 blastradius check "<command>"   # classify a command, exit 2 if it needs confirming
 blastradius explain "<command>" # the same, plus what you cannot undo
+blastradius audit               # find risky commands already committed here
 blastradius context             # show the cluster, workspace, and profile in play
 blastradius hook                # PreToolUse hook, reads JSON on stdin
 blastradius install             # print the settings snippet

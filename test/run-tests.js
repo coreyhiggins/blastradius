@@ -461,6 +461,95 @@ test('WRAPPER: recursion terminates on a self-referential script', () => {
   assert.ok(r, 'self-referential wrapper did not terminate');
 });
 
+// ------------------------------------------------------------------- audit --
+
+const { audit, extract } = require('../src/audit');
+
+// A project with genuinely risky commands, plus routine ones it must ignore.
+const PROJ = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'blastradius-audit-'));
+fs.mkdirSync(pathMod.join(PROJ, '.github', 'workflows'), { recursive: true });
+
+fs.writeFileSync(pathMod.join(PROJ, 'package.json'), JSON.stringify({
+  scripts: {
+    build: 'node build.js',
+    test: 'node test.js',
+    deploy: 'rsync -a --delete ./dist deploy@web01:/srv/app',
+    nuke: 'kubectl delete ns payments',
+  },
+}));
+
+fs.writeFileSync(pathMod.join(PROJ, 'release.sh'), [
+  '#!/usr/bin/env bash',
+  '# a comment mentioning rm -rf / which is not a command',
+  'set -euo pipefail',
+  'VERSION="1.2.3"',
+  'cat <<EOF',
+  'This help text says it will destroy everything, but it is only text.',
+  'terraform destroy',
+  'EOF',
+  'npm run build',
+  'git push --force origin main',
+].join('\n'));
+
+fs.writeFileSync(pathMod.join(PROJ, '.github', 'workflows', 'ci.yml'), [
+  'jobs:',
+  '  build:',
+  '    steps:',
+  '      - run: npm test',
+  '      - name: multi',
+  '        run: |',
+  '          echo "a && b"',
+  '          npm run build',
+].join('\n'));
+
+test('AUDIT: finds risky commands in package.json scripts', () => {
+  const { findings } = audit(PROJ, { config: null });
+  const cmds = findings.map((f) => f.command).join(' | ');
+  assert.ok(cmds.includes('rsync'), 'missed the deploy script');
+  assert.ok(cmds.includes('kubectl delete'), 'missed the kubectl delete');
+});
+
+test('AUDIT: finds risky commands in shell scripts', () => {
+  const { findings } = audit(PROJ, { config: null });
+  assert.ok(findings.some((f) => f.command.includes('--force')), 'missed the force push');
+});
+
+test('AUDIT: ignores routine commands', () => {
+  const { findings } = audit(PROJ, { config: null });
+  const noisy = findings.filter((f) => /npm (test|run build)|node (build|test)\.js/.test(f.command));
+  assert.strictEqual(noisy.length, 0, `flagged routine work: ${noisy.map((f) => f.command).join(', ')}`);
+});
+
+test('AUDIT: heredoc bodies are text, not commands', () => {
+  const got = extract('release.sh', fs.readFileSync(pathMod.join(PROJ, 'release.sh'), 'utf8'));
+  const cmds = got.map((g) => g.command);
+  assert.ok(!cmds.some((c) => c.includes('This help text')), 'extracted heredoc prose as a command');
+  assert.ok(!cmds.some((c) => c.trim() === 'terraform destroy'), 'extracted a heredoc line as a live command');
+});
+
+test('AUDIT: comments and bare assignments are skipped', () => {
+  const got = extract('release.sh', fs.readFileSync(pathMod.join(PROJ, 'release.sh'), 'utf8'));
+  const cmds = got.map((g) => g.command);
+  assert.ok(!cmds.some((c) => c.startsWith('#')), 'extracted a comment');
+  assert.ok(!cmds.some((c) => c === 'VERSION="1.2.3"'), 'extracted a bare assignment');
+});
+
+test('AUDIT: a YAML block scalar is one command, not one per line', () => {
+  const yml = fs.readFileSync(pathMod.join(PROJ, '.github', 'workflows', 'ci.yml'), 'utf8');
+  const got = extract('ci.yml', yml);
+  const block = got.find((g) => g.command.includes('npm run build'));
+  assert.ok(block, 'lost the block scalar entirely');
+  assert.ok(block.command.includes('echo'), 'block was split per line, which creates unparseable fragments');
+});
+
+test('AUDIT: never reports its own parse failures as project risk', () => {
+  // Static extraction produces fragments. A fragment we misread is our bug,
+  // not the project's risk, and reporting it teaches people to ignore output.
+  const { findings } = audit(PROJ, { config: null });
+  assert.ok(!findings.some((f) => /Could not parse/.test(f.reasons.join(' '))),
+    'reported an extraction artifact as a finding');
+});
+
 // ----------------------------------------------------------------- explain --
 
 const { guidanceFor } = require('../src/rules');

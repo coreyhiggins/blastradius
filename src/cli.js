@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const { assess, readContext } = require('./classify');
 const { guidanceFor } = require('./rules');
+const { audit } = require('./audit');
 const { runHook } = require('./hook');
 
 // FORCE_COLOR lets docs tooling and CI capture the coloured output that a
@@ -32,6 +33,7 @@ ${bold('blastradius')} - how far does this command reach?
 ${bold('Usage')}
   blastradius check "<command>"     Classify a command
   blastradius explain "<command>"   Classify it, and say what you cannot undo
+  blastradius audit [dir]           Find risky commands already in this project
   blastradius context               Show the environment commands run against
   blastradius hook                  PreToolUse hook (reads JSON on stdin)
   blastradius install               Print the Claude Code settings snippet
@@ -148,6 +150,42 @@ function cmdCheck(args, { explain = false } = {}) {
   return ['confirm', 'danger'].includes(result.severity) ? 2 : 0;
 }
 
+function cmdAudit(args) {
+  const root = args.find((a) => !a.startsWith('-')) || process.cwd();
+  const { findings, scanned, files } = audit(root);
+
+  process.stdout.write('\n');
+
+  if (!scanned) {
+    process.stdout.write(`  ${dim('No commands found. Looked in package.json scripts, shell scripts, CI workflows, and Makefiles.')}\n\n`);
+    return 0;
+  }
+
+  if (!findings.length) {
+    process.stdout.write(`  ${c('32', bold('Nothing reaches past this machine.'))}\n`);
+    process.stdout.write(`  ${dim(`${scanned} commands across ${files} files, none destructive beyond the project.`)}\n\n`);
+    return 0;
+  }
+
+  let lastFile = '';
+  for (const f of findings) {
+    if (f.file !== lastFile) {
+      process.stdout.write(`\n  ${bold(f.file)}\n`);
+      lastFile = f.file;
+    }
+    const badge = BADGE[f.severity];
+    process.stdout.write(`    ${c(badge.color, badge.label.padEnd(8))}${dim(f.where.padEnd(16))}${f.command.slice(0, 60)}\n`);
+    if (f.reasons[0]) process.stdout.write(`    ${dim(`         ${f.reasons[0].slice(0, 88)}`)}\n`);
+  }
+
+  const danger = findings.filter((f) => f.severity === 'danger').length;
+  process.stdout.write(`\n  ${bold(`${findings.length} of ${scanned} commands`)} reach past this machine`);
+  process.stdout.write(danger ? `, ${c('31', `${danger} at a target that looks like production`)}` : '');
+  process.stdout.write(`\n  ${dim('Run blastradius explain "<command>" on any of them for detail.')}\n\n`);
+
+  return findings.length ? 2 : 0;
+}
+
 function cmdContext() {
   const ctx = readContext();
   const entries = Object.entries(ctx);
@@ -235,6 +273,7 @@ async function main(argv) {
   switch (command) {
     case 'check':   return cmdCheck(rest);
     case 'explain': return cmdCheck(rest, { explain: true });
+    case 'audit':   return cmdAudit(rest);
     case 'context': return cmdContext();
     case 'install': return cmdInstall(rest[0]);
     case 'hook':    return runHook('claude-code');
