@@ -178,6 +178,47 @@ test('stopping a service is a machine-level notice', () => {
   assert.strictEqual(at('systemctl stop nginx').severity, 'notice');
 });
 
+// --- found while bug-hunting another tool, 2026-08-01 ----------------------
+// Two holes in our own classifier, found by running the same corpus against
+// ourselves before filing a report on someone else's project.
+
+test('SELF-AUDIT: a path-qualified env wrapper is unwrapped', () => {
+  // The bypass that was live in cc-safety-net. Ours strips by basename, so it
+  // was already covered, but nothing pinned it.
+  assert.notStrictEqual(at('/usr/bin/env rm -rf /var/www').severity, 'ok');
+  assert.notStrictEqual(at('sudo /usr/bin/env rm -rf /var/www').severity, 'ok');
+  assert.notStrictEqual(at('/usr/bin/env.exe rm -rf /var/www').severity, 'ok');
+});
+
+test('SELF-AUDIT: git reset --hard is destructive, not quietly local', () => {
+  // Calling this `local` implied an editor could undo it. Nothing can: it
+  // destroys work git was never told about.
+  const r = at('git reset --hard HEAD~3');
+  assert.strictEqual(r.severity, 'notice');
+  assert.ok(r.reasons.join(' ').includes('never knew about it'));
+});
+
+test('SELF-AUDIT: git clean and stash clear count too', () => {
+  assert.strictEqual(at('git clean -fdx').severity, 'notice');
+  assert.strictEqual(at('git stash clear').severity, 'notice');
+});
+
+test('SELF-AUDIT: the colon refspec deletes a remote branch', () => {
+  // `git push origin :main` is a delete wearing different clothes. We caught
+  // the + form and missed this one.
+  const r = at('git push origin :main');
+  assert.strictEqual(r.severity, 'confirm');
+  assert.ok(r.reasons.join(' ').includes('deletes a branch'));
+});
+
+test('SELF-AUDIT: ordinary git work stays silent', () => {
+  assert.strictEqual(at('git reset HEAD~1').severity, 'ok', 'a soft reset is not destructive');
+  assert.strictEqual(at('git clean -n').severity, 'ok', 'a dry run is not destructive');
+  assert.strictEqual(at('git checkout -b feature/new').severity, 'ok');
+  assert.strictEqual(at('git stash').severity, 'ok');
+  assert.strictEqual(at('git push origin main').severity, 'ok');
+});
+
 // --- regressions from the 166-command audit, 2026-08-01 -------------------
 
 test('AUDIT: restart counts as destructive, so configs can escalate it', () => {

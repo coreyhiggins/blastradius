@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml/badge.svg)](https://github.com/coreyhiggins/blastradius/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coreyhiggins/blastradius)](https://www.npmjs.com/package/@coreyhiggins/blastradius)
-[![tests](https://img.shields.io/badge/tests-92%20passing-brightgreen)](test/run-tests.js)
+[![tests](https://img.shields.io/badge/tests-97%20passing-brightgreen)](test/run-tests.js)
 [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -285,7 +285,7 @@ human reviews it. Given the alternative, it is the right trade.
 
 Two findings, not one. The `rm` inside the payload is judged on its own merits, because that is the part that does the damage.
 
-A command it cannot parse is escalated, never waved through. Of the 92 tests, 10 are bypass attempts, 6 prove config cannot weaken the guard, and 2 prove a wrapper script cannot read outside the project, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
+A command it cannot parse is escalated, never waved through. Of the 97 tests, 10 are bypass attempts, 6 prove config cannot weaken the guard, and 2 prove a wrapper script cannot read outside the project, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
 
 ## Usage
 

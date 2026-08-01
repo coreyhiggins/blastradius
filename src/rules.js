@@ -204,19 +204,38 @@ const RULES = [
   },
   {
     match: ['git'],
-    radius: (argv) => (['push', 'fetch', 'pull', 'clone', 'remote'].includes(sub(argv)) ? REMOTE : LOCAL),
+    radius: (argv) => {
+      if (['push', 'fetch', 'pull', 'clone', 'remote'].includes(sub(argv))) return REMOTE;
+      // `reset --hard` and `clean -fd` are inside the project, but calling
+      // them LOCAL implies an editor could undo them, and nothing can. They
+      // destroy work that has never existed anywhere else. MACHINE keeps them
+      // visible (and escalatable by config) without interrupting, which is
+      // the same call made for `systemctl restart`.
+      if (destroysUncommitted(argv)) return MACHINE;
+      return LOCAL;
+    },
     destructive: (argv) => {
+      if (destroysUncommitted(argv)) return true;
       if (sub(argv) !== 'push') return false;
       // Prefix match, not equality: --force-with-lease and --force-if-includes
       // are still history rewrites, they are just politer about it.
       if (argv.some((a) => a === '-f' || a.startsWith('--force'))) return true;
       if (has(argv, '--delete', '-d')) return true;
-      // A leading + on a refspec is a force push wearing a disguise.
-      return argv.slice(2).some((a) => /^\+/.test(a));
+      // Two disguised force pushes. `+main` is force for that ref. `:main`
+      // is an empty source, which deletes the remote branch.
+      return argv.slice(2).some((a) => /^\+/.test(a) || /^:/.test(a));
     },
-    why: (argv) => (has(argv, '--force-with-lease')
-      ? 'force-pushes to a shared remote (lease-checked, but still rewrites history)'
-      : 'force-pushes to a shared remote, overwriting other people\'s commits'),
+    why: (argv) => {
+      if (destroysUncommitted(argv)) {
+        return 'discards uncommitted work, which git cannot recover because it never knew about it';
+      }
+      if (argv.slice(2).some((a) => /^:/.test(a)) || has(argv, '--delete', '-d')) {
+        return 'deletes a branch on the shared remote';
+      }
+      return has(argv, '--force-with-lease')
+        ? 'force-pushes to a shared remote (lease-checked, but still rewrites history)'
+        : 'force-pushes to a shared remote, overwriting other people\'s commits';
+    },
   },
 
   // ---- Reaches this machine, outside the project --------------------------
@@ -311,6 +330,24 @@ const RULES = [
  * conservative: `rm -rf ~/.config` should be treated as leaving the project
  * even though it never touches `/`.
  */
+/**
+ * git subcommands that throw away work git was never told about.
+ *
+ * These sit inside the project directory, so the reach model would call them
+ * local, but "local" carries an implied promise that something can undo it.
+ * Nothing undoes these.
+ */
+function destroysUncommitted(argv) {
+  const command = sub(argv);
+  if (command === 'reset') return argv.some((a) => a === '--hard');
+  if (command === 'clean') return argv.some((a) => /^-[a-z]*[fd]/i.test(a));
+  if (command === 'checkout' || command === 'restore') {
+    return argv.slice(2).some((a) => a === '.' || a === '--');
+  }
+  if (command === 'stash') return argv.includes('clear') || argv.includes('drop');
+  return false;
+}
+
 function touchesOutsideProject(argv) {
   return argv.slice(1).some((a) => {
     if (a.startsWith('-')) return false;
