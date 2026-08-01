@@ -125,6 +125,21 @@ CLAUDE.md that says "never touch X" or a runbook that says "do not restart Y
 without a countdown" is a rule that only works while somebody remembers it.
 This is how it becomes a check.
 
+**Two things that are easy to get wrong.**
+
+*`notice` never interrupts.* It appears in `blastradius check` and nowhere
+else. That is right for the built-ins, where `rm -rf /var/log` should be
+recorded without nagging you. It is usually wrong for a rule you wrote
+yourself: if it was worth writing, it is worth seeing. Use `confirm`.
+
+*Gate patterns on a verb, not a bare name.* `"pattern": "servers/prod"`
+matches `tail`, `ls`, and `sha256sum` as readily as `rm`. Reading is not
+changing. Write `"(rm|mv|cp|chown|systemctl\\s+restart)\\b.{0,40}servers/prod"`
+instead. An audit of 166 real commands found every false positive traced to a
+pattern matching a bare substring, including one that flagged a runbook's own
+documented safe-to-restart check as `danger`. That is the noise that gets a
+guard uninstalled.
+
 **Put nothing secret in a committed config.** Host names, IPs, key paths, and
 account identifiers belong in a gitignored file.
 
@@ -162,7 +177,7 @@ $ blastradius check "ssh deploy@web01 'rm -rf /var/www'"
   - rm -rf /var/www - recursively deletes a path outside the project directory
 ```
 
-A command it cannot parse is escalated, never waved through. Of the 59 tests, 10 are bypass attempts and 6 more prove config cannot weaken the guard, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
+A command it cannot parse is escalated, never waved through. Of the 64 tests, 10 are bypass attempts and 6 more prove config cannot weaken the guard, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
 
 ## Usage
 
