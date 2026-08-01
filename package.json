@@ -1,6 +1,6 @@
 {
   "name": "@coreyhiggins/blastradius",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "How far does this command reach? Guards AI coding agents against commands that leave your machine. Zero dependencies.",
   "bin": {
     "blastradius": "bin/blastradius.js"
@@ -12,6 +12,7 @@
     "commands",
     "skills",
     "hooks",
+    "examples",
     ".claude-plugin",
     "README.md",
     "LICENSE"

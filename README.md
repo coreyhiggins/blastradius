@@ -12,7 +12,7 @@
 
 Your AI agent can undo the files it edits. It cannot undo `terraform destroy`.
 
-<img src="assets/demo.svg" alt="Four commands checked. kubectl get pods and rm -rf ./build pass silently. git push --force and terraform destroy are both flagged as reaching beyond this machine." width="720">
+<img src="https://cdn.jsdelivr.net/gh/coreyhiggins/blastradius@main/assets/demo.svg" alt="Four commands checked. kubectl get pods and rm -rf ./build pass silently. git push --force and terraform destroy are both flagged as reaching beyond this machine." width="720">
 
 **Works with Claude Code, Cursor, and Codex CLI.**
 
@@ -259,7 +259,7 @@ human reviews it. Given the alternative, it is the right trade.
 
 **It cannot be talked around.** The parser respects quoting and escapes, unwraps `sudo -u deploy`, follows `$(...)` and backticks, reads local wrapper scripts, and inspects what you send through `ssh`:
 
-<img src="assets/demo-ssh.svg" alt="blastradius check on an ssh command, showing two findings: the ssh itself and the rm inside its payload" width="660">
+<img src="https://cdn.jsdelivr.net/gh/coreyhiggins/blastradius@main/assets/demo-ssh.svg" alt="blastradius check on an ssh command, showing two findings: the ssh itself and the rm inside its payload" width="660">
 
 Two findings, not one. The `rm` inside the payload is judged on its own merits, because that is the part that does the damage.
 
