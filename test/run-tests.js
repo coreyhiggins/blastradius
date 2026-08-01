@@ -461,6 +461,34 @@ test('WRAPPER: recursion terminates on a self-referential script', () => {
   assert.ok(r, 'self-referential wrapper did not terminate');
 });
 
+// ----------------------------------------------------------------- explain --
+
+const { guidanceFor } = require('../src/rules');
+
+test('EXPLAIN: known commands get specific guidance, not boilerplate', () => {
+  const g = guidanceFor('terraform', 'remote');
+  assert.ok(g.unrecoverable.includes('snapshot'), 'terraform guidance is generic');
+  assert.ok(g.before.length >= 1);
+});
+
+test('EXPLAIN: docker names volumes, since that is the part people lose', () => {
+  assert.ok(guidanceFor('docker', 'machine').unrecoverable.toLowerCase().includes('volume'));
+});
+
+test('EXPLAIN: an unknown command still gets honest guidance', () => {
+  const g = guidanceFor('some-unknown-binary', 'remote');
+  assert.ok(g.changes && g.unrecoverable && g.before.length);
+  // The fallback must not invent a specific consequence it cannot know.
+  assert.ok(g.unrecoverable.toLowerCase().includes('unknown'));
+});
+
+test('EXPLAIN: guidance scales with reach', () => {
+  const local = guidanceFor('unknown-thing', 'local');
+  const remote = guidanceFor('unknown-thing', 'remote');
+  assert.notStrictEqual(local.changes, remote.changes);
+  assert.ok(local.unrecoverable.toLowerCase().includes('uncommitted'));
+});
+
 // -------------------------------------------------------------------- hook --
 
 const { decide } = require('../src/hook');

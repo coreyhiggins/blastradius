@@ -55,6 +55,76 @@ function isRemoteHost(host) {
   return !LOCAL_HOSTS.has(String(host).toLowerCase());
 }
 
+// Plain-language guidance for `blastradius explain`. Keyed by command name.
+//
+// `unrecoverable` is the field that matters and the one people get wrong.
+// It is not "this is dangerous", it is specifically what no backup, undo,
+// or rerun brings back. If a command has no such consequence, say so, and
+// the tool stops crying wolf.
+const GUIDANCE = {
+  terraform: {
+    changes: 'Real infrastructure in whichever state this workspace points at. Nothing on this machine.',
+    unrecoverable: 'Anything not backed up outside Terraform. Managed databases are commonly deleted together with their snapshots, so the backup goes with the thing it was backing up.',
+    before: ['terraform workspace show', 'terraform plan -destroy, and read the resource list'],
+  },
+  kubectl: {
+    changes: 'Workloads in whichever cluster your current context points at.',
+    unrecoverable: 'Data in deleted PersistentVolumes, and anything a namespace deletion takes with it. Deleting a namespace deletes everything inside it.',
+    before: ['kubectl config current-context', 'add --dry-run=server to see what would happen'],
+  },
+  helm: {
+    changes: 'Released workloads in the target cluster.',
+    unrecoverable: 'Data in volumes the release owns. A rollback restores manifests, not data.',
+    before: ['helm list to confirm the namespace and release', 'helm diff upgrade if you have the plugin'],
+  },
+  git: {
+    changes: 'The branch on the shared remote, for everyone who has it.',
+    unrecoverable: 'Commits that only existed on the remote. Anyone who already pulled will have a conflicting history and will need to reset.',
+    before: ['git log --oneline origin/BRANCH -5 to see what you are overwriting', 'prefer --force-with-lease, which refuses when the remote has moved'],
+  },
+  rm: {
+    changes: 'Files on this machine.',
+    unrecoverable: 'Anything not committed to git and not in a backup. There is no trash: rm unlinks immediately.',
+    before: ['ls the path first, since a stray space turns "rm -rf ./build" into something much worse'],
+  },
+  systemctl: {
+    changes: 'A running service, and anything currently depending on it.',
+    unrecoverable: 'Nothing permanently, but in-flight requests and connected sessions are dropped and do not resume.',
+    before: ['systemctl status NAME to see what is actually running', 'check whether anyone is connected before restarting'],
+  },
+  docker: {
+    changes: 'Containers, images, or volumes on this machine.',
+    unrecoverable: 'Volume contents. Databases run in Docker keep their data in volumes, so "down -v" deletes the database, not just the container.',
+    before: ['docker volume ls to see what would go', 'drop the -v flag if you only meant to stop the containers'],
+  },
+  mysql: {
+    changes: 'Rows and schema in the target database.',
+    unrecoverable: 'Everything the statement touches, unless you took a dump first. A restore only returns you to the dump.',
+    before: ['confirm which host the connection actually points at', 'mysqldump first, it takes seconds'],
+  },
+  ssh: {
+    changes: 'Whatever the payload does, on the far machine.',
+    unrecoverable: 'Depends entirely on the payload. Your local editor and its undo have no reach there at all.',
+    before: ['read the payload as if it were being run locally, because to that host it is'],
+  },
+  aws: {
+    changes: 'Resources in the account this profile authenticates to.',
+    unrecoverable: 'Deleted buckets and their contents, terminated instances with ephemeral storage, and anything without a retention policy.',
+    before: ['aws sts get-caller-identity to confirm the account', 'add --dryrun where the subcommand supports it'],
+  },
+};
+
+GUIDANCE.tofu = GUIDANCE.terraform;
+GUIDANCE.oc = GUIDANCE.kubectl;
+GUIDANCE.podman = GUIDANCE.docker;
+GUIDANCE.psql = GUIDANCE.mysql;
+GUIDANCE.mariadb = GUIDANCE.mysql;
+GUIDANCE.gcloud = GUIDANCE.aws;
+GUIDANCE.az = GUIDANCE.aws;
+GUIDANCE.scp = GUIDANCE.ssh;
+GUIDANCE.sftpc = GUIDANCE.ssh;
+GUIDANCE.sexec = GUIDANCE.ssh;
+
 const RULES = [
   // ---- Reaches another machine -------------------------------------------
   {
@@ -267,8 +337,40 @@ function remainderAfterHost(argv) {
   return rest.length ? rest.join(' ') : null;
 }
 
+/**
+ * Guidance for a finding, falling back to something honest and generic when
+ * no specific entry exists. The fallback is deliberately vague about
+ * consequences rather than inventing them: a made-up warning is worse than
+ * a plain one.
+ */
+function guidanceFor(command, radius) {
+  if (GUIDANCE[command]) return GUIDANCE[command];
+
+  if (radius === REMOTE) {
+    return {
+      changes: 'State on another machine, cluster, or account.',
+      unrecoverable: 'Unknown. Nothing on your machine records what happens on the other end, so assume it is not reversible from here.',
+      before: ['confirm which environment this is pointed at'],
+    };
+  }
+  if (radius === MACHINE) {
+    return {
+      changes: 'This machine, outside the project directory.',
+      unrecoverable: 'Anything not under version control and not backed up.',
+      before: ['check the exact path before running it'],
+    };
+  }
+  return {
+    changes: 'Files inside the project directory.',
+    unrecoverable: 'Uncommitted work. Git cannot restore what it was never told about.',
+    before: ['git status, so you know what is uncommitted'],
+  };
+}
+
 module.exports = {
   RULES,
+  GUIDANCE,
+  guidanceFor,
   LOCAL,
   MACHINE,
   REMOTE,

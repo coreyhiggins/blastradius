@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { assess, readContext } = require('./classify');
+const { guidanceFor } = require('./rules');
 const { runHook } = require('./hook');
 
 // FORCE_COLOR lets docs tooling and CI capture the coloured output that a
@@ -30,6 +31,7 @@ ${bold('blastradius')} - how far does this command reach?
 
 ${bold('Usage')}
   blastradius check "<command>"     Classify a command
+  blastradius explain "<command>"   Classify it, and say what you cannot undo
   blastradius context               Show the environment commands run against
   blastradius hook                  PreToolUse hook (reads JSON on stdin)
   blastradius install               Print the Claude Code settings snippet
@@ -68,14 +70,81 @@ function renderResult(command, result) {
   return lines.join('\n');
 }
 
-function cmdCheck(args) {
-  const command = args.join(' ').trim();
+/**
+ * The long form. `check` tells you a command is risky; `explain` tells you
+ * what that actually means, which is the difference between a warning
+ * someone dismisses and one they act on.
+ */
+function renderExplain(command, result) {
+  const badge = BADGE[result.severity];
+  const out = [];
+
+  out.push('');
+  out.push(`  ${c(badge.color, bold(badge.label.padEnd(8)))}${command}`);
+  out.push(`  ${dim(`reach: ${result.radius}`)}`);
+
+  if (result.severity === 'ok') {
+    out.push('');
+    out.push(`  ${dim(result.radius === 'local'
+      ? 'Nothing here leaves the project. Your editor can undo it.'
+      : 'This reaches beyond your machine, but only reads. Nothing changes.')}`);
+    out.push('');
+    return out.join('\n');
+  }
+
+  const acted = result.findings.filter((f) => f.destructive);
+  const seen = new Set();
+
+  out.push('');
+  out.push(`  ${bold('What it does')}`);
+  acted.forEach((f) => out.push(`    ${f.argv.slice(0, 5).join(' ')} - ${f.why}`));
+
+  for (const f of acted) {
+    const g = guidanceFor(f.command, f.radius);
+    const key = `${g.changes}|${g.unrecoverable}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push('');
+    out.push(`  ${bold('What changes')}`);
+    out.push(`    ${wrap(g.changes)}`);
+    out.push('');
+    out.push(`  ${c('31', bold('What you cannot get back'))}`);
+    out.push(`    ${wrap(g.unrecoverable)}`);
+    out.push('');
+    out.push(`  ${bold('Before you run it')}`);
+    g.before.forEach((b) => out.push(`    ${dim('-')} ${b}`));
+  }
+
+  out.push('');
+  return out.join('\n');
+}
+
+/** Soft-wrap at 72 columns, indented to match the caller. */
+function wrap(text, indent = '    ') {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    if ((line + w).length > 72) { lines.push(line.trimEnd()); line = ''; }
+    line += `${w} `;
+  }
+  if (line.trim()) lines.push(line.trimEnd());
+  return lines.join(`\n${indent}`);
+}
+
+function cmdCheck(args, { explain = false } = {}) {
+  const flags = new Set(args.filter((a) => a.startsWith('--')));
+  const command = args.filter((a) => !a.startsWith('--')).join(' ').trim();
+
   if (!command) {
     process.stderr.write('blastradius: nothing to check\n');
     return 1;
   }
+
   const result = assess(command);
-  process.stdout.write(renderResult(command, result));
+  const long = explain || flags.has('--explain');
+  process.stdout.write(long ? renderExplain(command, result) : renderResult(command, result));
   return ['confirm', 'danger'].includes(result.severity) ? 2 : 0;
 }
 
@@ -165,6 +234,7 @@ async function main(argv) {
 
   switch (command) {
     case 'check':   return cmdCheck(rest);
+    case 'explain': return cmdCheck(rest, { explain: true });
     case 'context': return cmdContext();
     case 'install': return cmdInstall(rest[0]);
     case 'hook':    return runHook('claude-code');
