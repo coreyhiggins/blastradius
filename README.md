@@ -78,7 +78,7 @@ As a Claude Code plugin, which also gives you a `/blastradius` command:
 Or wire the hook up by hand:
 
 ```bash
-npx blastradius install
+npx @coreyhiggins/blastradius install
 ```
 
 That prints the snippet for `.claude/settings.json`:
@@ -89,7 +89,7 @@ That prints the snippet for `.claude/settings.json`:
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "npx -y blastradius hook" }]
+        "hooks": [{ "type": "command", "command": "npx -y @coreyhiggins/blastradius hook" }]
       }
     ]
   }

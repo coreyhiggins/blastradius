@@ -94,7 +94,7 @@ function cmdInstall() {
       PreToolUse: [
         {
           matcher: 'Bash',
-          hooks: [{ type: 'command', command: 'npx -y blastradius hook' }],
+          hooks: [{ type: 'command', command: 'npx -y @coreyhiggins/blastradius hook' }],
         },
       ],
     },
