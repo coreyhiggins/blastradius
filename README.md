@@ -68,6 +68,15 @@ Context comes from your kubeconfig's `current-context`, your Terraform workspace
 
 ## Install
 
+As a Claude Code plugin, which also gives you a `/blastradius` command:
+
+```
+/plugin marketplace add CoreyH32/blastradius
+/plugin install blastradius
+```
+
+Or wire the hook up by hand:
+
 ```bash
 npx blastradius install
 ```
@@ -86,6 +95,52 @@ That prints the snippet for `.claude/settings.json`:
   }
 }
 ```
+
+## Your own rules
+
+The built-in table knows `systemctl restart` is routine. It cannot know that
+`mc-cobblemon` is a game server with forty people connected to it right now.
+That is what a `.blastradius.json` in your project root is for:
+
+```json
+{
+  "rules": [
+    {
+      "id": "live-game-servers",
+      "when": { "pattern": "\\bmc-[a-z]+" },
+      "severity": "danger",
+      "why": "Live server with players connected. Send a countdown first."
+    }
+  ]
+}
+```
+
+`when` takes `command` (matched against the resolved command name, after
+`sudo` and `env` are unwrapped) or `pattern` (a case-insensitive regex).
+`severity` is `notice`, `confirm`, or `danger`. `why` is required, and it is
+shown to a human, so write it for one.
+
+Most projects already have these rules written down somewhere as prose. A
+CLAUDE.md that says "never touch X" or a runbook that says "do not restart Y
+without a countdown" is a rule that only works while somebody remembers it.
+This is how it becomes a check.
+
+**Put nothing secret in a committed config.** Host names, IPs, key paths, and
+account identifiers belong in a gitignored file.
+
+### Custom rules can only escalate
+
+There is no allowlist. You cannot use config to silence a rule, lower a
+severity, or turn the guard off.
+
+That is deliberate, and it is the point. The agent this tool guards **has
+file-write access**. If a config file could weaken the guard, then writing
+`.blastradius.json` is the first bypass anyone would find, and a safety
+control its own subject can edit is not a safety control.
+
+The cost is real: you cannot currently silence a false positive with config.
+That belongs in [`src/rules.js`](src/rules.js) as a pull request, where a
+human reviews it. Given the alternative, it is the right trade.
 
 ## Design rules
 
@@ -107,7 +162,7 @@ $ blastradius check "ssh deploy@web01 'rm -rf /var/www'"
   - rm -rf /var/www - recursively deletes a path outside the project directory
 ```
 
-A command it cannot parse is escalated, never waved through. Of the 49 tests, 10 are bypass attempts, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
+A command it cannot parse is escalated, never waved through. Of the 59 tests, 10 are bypass attempts and 6 more prove config cannot weaken the guard, because a guard you can slip past by putting quotes in the right place is worse than no guard: it reads as protection while providing none.
 
 ## Usage
 

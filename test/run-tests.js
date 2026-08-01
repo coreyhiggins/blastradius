@@ -34,7 +34,9 @@ const CTX = {
 };
 const DEV_CTX = { kubeContext: 'kind-local', terraformWorkspace: 'dev' };
 
-const at = (line, context = DEV_CTX) => assess(line, { context });
+// config: null keeps these hermetic. Without it, a .blastradius.json sitting
+// in someone's home directory would silently change test outcomes.
+const at = (line, context = DEV_CTX) => assess(line, { context, config: null });
 
 // ---------------------------------------------------------------- parsing --
 
@@ -223,30 +225,130 @@ test('rsync is only remote when an argument names a host', () => {
 // -------------------------------------------------------- context awareness --
 
 test('a production kube context raises confirm to danger', () => {
-  const r = assess('kubectl delete ns payments', { context: CTX });
+  const r = assess('kubectl delete ns payments', { context: CTX, config: null });
   assert.strictEqual(r.severity, 'danger');
   assert.ok(r.reasons[0].includes('production'), 'did not name the production target');
 });
 
 test('the same command against a local cluster stays at confirm', () => {
-  const r = assess('kubectl delete ns payments', { context: DEV_CTX });
+  const r = assess('kubectl delete ns payments', { context: DEV_CTX, config: null });
   assert.strictEqual(r.severity, 'confirm');
 });
 
 test('a prod terraform workspace raises danger', () => {
-  const r = assess('terraform destroy', { context: CTX });
+  const r = assess('terraform destroy', { context: CTX, config: null });
   assert.strictEqual(r.severity, 'danger');
 });
 
 test('the incident that started this: terraform destroy against prod', () => {
-  const r = assess('terraform destroy -auto-approve', { context: { terraformWorkspace: 'production' } });
+  const r = assess('terraform destroy -auto-approve', { context: { terraformWorkspace: 'production' }, config: null });
   assert.strictEqual(r.severity, 'danger');
   assert.strictEqual(r.radius, 'remote');
 });
 
 test('reasons are human readable and name the command', () => {
-  const r = assess('kubectl delete ns payments', { context: CTX });
+  const r = assess('kubectl delete ns payments', { context: CTX, config: null });
   assert.ok(r.reasons.some((x) => x.includes('kubectl delete')), 'reason did not name the command');
+});
+
+// ------------------------------------------------------------ custom rules --
+
+const { parseConfig, normalizeRule } = require('../src/config');
+
+const cfg = (rules) => parseConfig(JSON.stringify({ rules }), 'test');
+
+const ARC_RULES = [
+  {
+    id: 'arc-one-untouchable',
+    when: { pattern: 'servers/arcbound|Xmx30G' },
+    severity: 'danger',
+    why: 'Arc One production JVM. Owner rule: do not touch.',
+  },
+  {
+    id: 'live-game-servers',
+    when: { pattern: '\\bmc-[a-z]+' },
+    severity: 'danger',
+    why: 'Live game server with players connected. Send a countdown first.',
+  },
+];
+
+test('a custom rule escalates a command the built-ins rate lower', () => {
+  const config = cfg(ARC_RULES);
+  assert.strictEqual(config.errors.length, 0, config.errors.join('; '));
+
+  const before = assess('systemctl restart mc-cobblemon', { context: DEV_CTX, config: null });
+  const after = assess('systemctl restart mc-cobblemon', { context: DEV_CTX, config });
+
+  assert.strictEqual(before.severity, 'ok', 'baseline changed, update this test');
+  assert.strictEqual(after.severity, 'danger');
+  assert.ok(after.reasons[0].includes('players connected'));
+});
+
+test('a custom rule matches after sudo is unwrapped', () => {
+  const r = assess('sudo -u deploy systemctl stop mc-cobblemon', { context: DEV_CTX, config: cfg(ARC_RULES) });
+  assert.strictEqual(r.severity, 'danger');
+});
+
+test('SECURITY: a custom rule cannot downgrade a built-in verdict', () => {
+  // The agent this guards can write files. If config could lower severity,
+  // writing .blastradius.json would be the first bypass anyone found.
+  const sneaky = cfg([{
+    id: 'please-allow-this',
+    when: { command: 'terraform' },
+    severity: 'notice',
+    why: 'attempting to weaken a remote destructive verdict',
+  }]);
+
+  const r = assess('terraform destroy', { context: DEV_CTX, config: sneaky });
+  assert.strictEqual(r.severity, 'confirm', 'config downgraded a built-in verdict');
+});
+
+test('SECURITY: severity cannot be set to ok', () => {
+  const { error } = normalizeRule({ id: 'x', when: { command: 'rm' }, severity: 'ok', why: 'nope' }, 0);
+  assert.ok(error, '"ok" was accepted as a severity');
+});
+
+test('an invalid regex is rejected without killing the whole config', () => {
+  const config = cfg([
+    { id: 'broken', when: { pattern: '([unclosed' }, severity: 'danger', why: 'x' },
+    ...ARC_RULES,
+  ]);
+  assert.strictEqual(config.errors.length, 1);
+  assert.strictEqual(config.rules.length, 2, 'a good rule was dropped alongside the bad one');
+});
+
+test('an overlong pattern is refused', () => {
+  const config = cfg([{ id: 'huge', when: { pattern: 'a'.repeat(501) }, severity: 'danger', why: 'x' }]);
+  assert.strictEqual(config.rules.length, 0);
+  assert.ok(config.errors[0].includes('longer than'));
+});
+
+test('a rule without a human explanation is refused', () => {
+  const config = cfg([{ id: 'terse', when: { command: 'rm' }, severity: 'danger' }]);
+  assert.strictEqual(config.rules.length, 0);
+  assert.ok(config.errors[0].includes('why'));
+});
+
+test('malformed JSON produces a warning, never a crash', () => {
+  const config = parseConfig('{ not json', 'test');
+  assert.strictEqual(config.rules.length, 0);
+  assert.ok(config.errors[0].includes('not valid JSON'));
+});
+
+test('a broken config still leaves the built-in rules working', () => {
+  const config = parseConfig('{ not json', 'test');
+  const r = assess('terraform destroy', { context: DEV_CTX, config });
+  assert.strictEqual(r.severity, 'confirm', 'a broken config disabled the guard');
+});
+
+test('custom rules do not fire on unrelated commands', () => {
+  // `systemctl restart nginx` is deliberately `ok` in the built-ins: restarting
+  // a service after a config change is routine, and flagging it would make the
+  // tool noisy enough to uninstall. Whether a restart is a big deal depends
+  // entirely on what the service is, which is knowledge the built-ins cannot
+  // have and a project config can. That is the whole argument for custom rules.
+  const r = assess('systemctl restart nginx', { context: DEV_CTX, config: cfg(ARC_RULES) });
+  assert.strictEqual(r.severity, 'ok', 'mc- rule matched a non-mc service');
 });
 
 // -------------------------------------------------------------------- hook --

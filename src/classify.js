@@ -8,6 +8,7 @@ const { expand, basename } = require('./parse');
 const {
   RULES, LOCAL, MACHINE, REMOTE, RADIUS_ORDER, remainderAfterHost,
 } = require('./rules');
+const { loadConfig, applyCustomRules } = require('./config');
 
 // Names that, when they show up as a kube context, an aws profile, a
 // terraform workspace, or an ssh host, mean a human should look before the
@@ -133,23 +134,30 @@ function classifyLine(line, ctx = readContext(), depth = 0) {
  *            whose name looks like production
  */
 function assess(line, options = {}) {
-  const ctx = options.context || readContext(options.cwd);
+  const cwd = options.cwd || process.cwd();
+  const ctx = options.context || readContext(cwd);
   const { findings, unbalanced } = classifyLine(line, ctx);
+
+  // `config: null` disables custom rules entirely, which the tests rely on
+  // so a stray .blastradius.json on a dev machine cannot change results.
+  const config = options.config === undefined ? loadConfig(cwd) : options.config;
 
   const flat = [];
   const walk = (list) => list.forEach((f) => { flat.push(f); walk(f.nested); });
   walk(findings);
 
+  const finish = (result) => applyCustomRules(line, flat, result, config);
+
   // A line we could not parse is not a line we can vouch for. Say so rather
   // than returning a confident "ok" that happens to be wrong.
   if (unbalanced) {
-    return {
+    return finish({
       severity: 'confirm',
       radius: REMOTE,
       reasons: ['Could not parse this command safely (unbalanced quotes), so its effects are unknown.'],
       findings: flat,
       unparseable: true,
-    };
+    });
   }
 
   // Reported reach is the furthest ANY command travels, not just the
@@ -162,7 +170,7 @@ function assess(line, options = {}) {
 
   const destructive = flat.filter((f) => f.destructive);
   if (!destructive.length) {
-    return { severity: 'ok', radius: reach, reasons: [], findings: flat, unparseable: false };
+    return finish({ severity: 'ok', radius: reach, reasons: [], findings: flat, unparseable: false });
   }
 
   const worst = destructive.reduce(
@@ -187,7 +195,7 @@ function assess(line, options = {}) {
     reasons.unshift(`Target looks like production: ${names.join(', ')}.`);
   }
 
-  return { severity, radius: worst.radius, reasons, findings: flat, unparseable: false };
+  return finish({ severity, radius: worst.radius, reasons, findings: flat, unparseable: false });
 }
 
 module.exports = { assess, classifyLine, readContext, PROD_PATTERN };

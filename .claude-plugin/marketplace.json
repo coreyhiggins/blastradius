@@ -1,0 +1,15 @@
+{
+  "name": "blastradius",
+  "description": "Safety guards for AI coding agents that have shell access. Classifies how far a command reaches before it runs.",
+  "owner": {
+    "name": "Corey",
+    "url": "https://github.com/CoreyH32"
+  },
+  "plugins": [
+    {
+      "name": "blastradius",
+      "source": "./",
+      "description": "Guards shell commands that leave your machine. Checkpointing covers file edits and explicitly does not cover bash, which is where ssh, terraform, kubectl and force-push live."
+    }
+  ]
+}
