@@ -384,6 +384,83 @@ test('custom rules do not fire on unrelated commands', () => {
   assert.strictEqual(r.severity, 'notice', 'a live-server rule matched an unrelated service');
 });
 
+// ---------------------------------------------------------------- wrappers --
+
+const fs = require('node:fs');
+const os = require('node:os');
+const pathMod = require('node:path');
+const { expandWrapper, insideProject, scriptTarget } = require('../src/script');
+
+// A throwaway project so wrapper tests never depend on the repo they run in.
+const FIXTURE = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'blastradius-'));
+fs.writeFileSync(pathMod.join(FIXTURE, 'deploy.sh'),
+  '#!/bin/bash\n# ship it\nset -e\nnpm run build\nrsync -a --delete ./dist deploy@web01:/srv/app\n');
+fs.writeFileSync(pathMod.join(FIXTURE, 'build.sh'),
+  '#!/bin/bash\nrm -rf ./dist\nnpm run build\n');
+fs.writeFileSync(pathMod.join(FIXTURE, 'package.json'),
+  JSON.stringify({ scripts: { build: 'node build.js', deploy: 'bash deploy.sh' } }));
+
+const inFixture = (line) => assess(line, { context: { cwd: FIXTURE }, cwd: FIXTURE, config: null });
+
+test('WRAPPER: a deploy script is judged on what is inside it', () => {
+  const r = inFixture('./deploy.sh');
+  assert.notStrictEqual(r.severity, 'ok', 'an opaque deploy script was waved through');
+  assert.strictEqual(r.radius, 'remote');
+  assert.ok(r.reasons.join(' ').includes('deploy.sh'), 'did not name the script');
+});
+
+test('WRAPPER: a harmless build script stays quiet', () => {
+  // The whole point of reading the file rather than flagging every script.
+  assert.strictEqual(inFixture('./build.sh').severity, 'ok');
+});
+
+test('WRAPPER: bash script.sh resolves the same way', () => {
+  assert.notStrictEqual(inFixture('bash deploy.sh').severity, 'ok');
+});
+
+test('WRAPPER: npm run deploy is read from package.json', () => {
+  const r = inFixture('npm run deploy');
+  assert.notStrictEqual(r.severity, 'ok', 'npm run deploy was waved through');
+});
+
+test('WRAPPER: npm run build stays quiet', () => {
+  assert.strictEqual(inFixture('npm run build').severity, 'ok');
+});
+
+test('WRAPPER: an unreadable script is surfaced rather than ignored', () => {
+  const r = inFixture('./does-not-exist.sh');
+  assert.ok(r.findings.some((f) => f.wrapper), 'missing wrapper finding');
+  assert.ok(r.findings.some((f) => (f.why || '').includes('could not be read')));
+});
+
+test('SECURITY: a wrapper cannot read outside the project', () => {
+  assert.strictEqual(insideProject(FIXTURE, pathMod.join(FIXTURE, 'deploy.sh')), true);
+  assert.strictEqual(insideProject(FIXTURE, '/etc/shadow'), false);
+  assert.strictEqual(insideProject(FIXTURE, pathMod.join(FIXTURE, '..', '..', 'secrets.sh')), false);
+});
+
+test('SECURITY: traversal in the command itself is refused', () => {
+  const r = inFixture('bash ../../../etc/evil.sh');
+  const read = r.findings.filter((f) => f.wrapper && !(f.why || '').includes('could not be read'));
+  assert.strictEqual(read.length, 0, 'read a script outside the project');
+});
+
+test('scriptTarget recognises the shapes and rejects the rest', () => {
+  assert.strictEqual(scriptTarget(['./deploy.sh']), './deploy.sh');
+  assert.strictEqual(scriptTarget(['bash', '-e', 'scripts/go.sh']), 'scripts/go.sh');
+  assert.strictEqual(scriptTarget(['node', 'index.js']), null);
+  assert.strictEqual(scriptTarget(['ls', '-la']), null);
+});
+
+test('WRAPPER: recursion terminates on a self-referential script', () => {
+  const loop = pathMod.join(FIXTURE, 'loop.sh');
+  fs.writeFileSync(loop, '#!/bin/bash\nbash loop.sh\n');
+  // The assertion is simply that this returns rather than hanging or blowing
+  // the stack.
+  const r = inFixture('bash loop.sh');
+  assert.ok(r, 'self-referential wrapper did not terminate');
+});
+
 // -------------------------------------------------------------------- hook --
 
 const { decide } = require('../src/hook');

@@ -9,6 +9,7 @@ const {
   RULES, LOCAL, MACHINE, REMOTE, RADIUS_ORDER, remainderAfterHost,
 } = require('./rules');
 const { loadConfig, applyCustomRules } = require('./config');
+const { expandWrapper } = require('./script');
 
 // Names that, when they show up as a kube context, an aws profile, a
 // terraform workspace, or an ssh host, mean a human should look before the
@@ -29,7 +30,9 @@ function resolve(value, argv, cmd, meta) {
  * is its own problem.
  */
 function readContext(cwd = process.cwd()) {
-  const ctx = {};
+  // Carried so wrapper resolution knows which directory a relative script
+  // path is relative to, and which directory it must not escape.
+  const ctx = { cwd };
 
   // Active kubernetes context.
   try {
@@ -110,6 +113,48 @@ function classifyArgv(argv, ctx, depth = 0, meta = {}) {
   return finding;
 }
 
+/**
+ * Turn an expanded wrapper into a finding.
+ *
+ * Two outcomes worth distinguishing. If we read the script, its contents are
+ * classified normally and the wrapper inherits the worst of them, which keeps
+ * `./build.sh` quiet while `./deploy.sh` is judged on the deploy inside it.
+ * If we could NOT read it, that is itself worth surfacing once: an
+ * unreadable wrapper is a command whose effects nobody can see.
+ */
+function wrapperFinding(wrapper, ctx, depth) {
+  if (wrapper.unreadable || wrapper.text === null) {
+    return {
+      command: 'script',
+      argv: [wrapper.source],
+      radius: MACHINE,
+      destructive: false,
+      why: `runs ${wrapper.source}, which could not be read, so its effects are unknown`,
+      context: null,
+      nested: [],
+      wrapper: true,
+    };
+  }
+
+  const inner = classifyLine(wrapper.text, ctx, depth + 1);
+  const nested = inner.findings;
+  const worst = nested.filter((f) => f.destructive)
+    .reduce((acc, f) => (!acc || RADIUS_ORDER[f.radius] > RADIUS_ORDER[acc.radius] ? f : acc), null);
+
+  return {
+    command: 'script',
+    argv: [wrapper.source],
+    radius: worst ? worst.radius : LOCAL,
+    destructive: Boolean(worst),
+    why: worst
+      ? `runs ${wrapper.source}, which contains: ${worst.argv.slice(0, 4).join(' ')}`
+      : `runs ${wrapper.source}`,
+    context: null,
+    nested,
+    wrapper: true,
+  };
+}
+
 /** Classify a whole command line, including compound and substituted parts. */
 function classifyLine(line, ctx = readContext(), depth = 0) {
   const { commands, unbalanced } = expand(line);
@@ -118,6 +163,14 @@ function classifyLine(line, ctx = readContext(), depth = 0) {
   for (const { argv, pipedInto } of commands) {
     const finding = classifyArgv(argv, ctx, depth, { pipedInto });
     if (finding) findings.push(finding);
+
+    // A wrapper hides its risk in a file. Look inside, so `./deploy.sh` and
+    // `npm run deploy` are judged on what they actually do rather than on
+    // how harmless their name looks.
+    if (depth < 2) {
+      const wrapper = expandWrapper(argv, { cwd: ctx.cwd, depth });
+      if (wrapper) findings.push(wrapperFinding(wrapper, ctx, depth));
+    }
   }
 
   return { findings, unbalanced };
